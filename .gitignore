@@ -1,0 +1,34 @@
+# --- Secrets ---------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# --- Environment -----------------------------------------------------------
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# --- Data: THE IMPORTANT PART ----------------------------------------------
+# County DEMs run ~2 GB total and individual GeoTIFFs exceed GitHub's
+# hard 100 MB per-file limit. These are re-fetchable from 3DEP in one cell,
+# so they are cache, not source.
+data/
+!data/.gitkeep
+
+# --- Generated output ------------------------------------------------------
+output/
+!output/.gitkeep
+
+# Derived rasters anywhere
+*.tif
+*.tiff
+*.vrt
+*.gpkg
+*.parquet
+
+# --- OS / editor -----------------------------------------------------------
+.DS_Store
+.vscode/
+*.swp

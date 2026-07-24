@@ -1,0 +1,18 @@
+# Stage 1 — elevation
+numpy>=1.26
+pandas>=2.1
+scipy>=1.11
+matplotlib>=3.8
+rasterio>=1.3
+rioxarray>=0.15
+py3dep>=0.16          # 3DEP 1/3 arc-second fetch
+geopandas>=0.14
+pygris>=0.1.6         # TIGER county boundaries
+shapely>=2.0
+pyproj>=3.6
+python-dotenv>=1.0
+
+# Stage 3+ (not needed yet, listed so the venv is built once)
+# rasterstats>=0.19
+# folium>=0.15
+# openrouteservice>=2.3

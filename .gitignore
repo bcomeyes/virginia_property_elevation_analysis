@@ -32,3 +32,7 @@ output/
 .DS_Store
 .vscode/
 *.swp
+cache/
+*.sqlite
+*.tif
+*.gpkg

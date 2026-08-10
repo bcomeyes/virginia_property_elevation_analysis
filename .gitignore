@@ -36,3 +36,4 @@ cache/
 *.sqlite
 *.tif
 *.gpkg
+_archive/

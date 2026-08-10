@@ -1,0 +1,9 @@
+[2026-08-09 16:10] === BASELINE: all current land on high ground ===
+[2026-08-09 16:10] baseline: 159 high-ground pockets, 3 cities, days_on=all
+[2026-08-09 16:10]   Chesapeake, VA       400 listings -> 0 on high ground
+[2026-08-09 16:11]   Virginia Beach, VA   400 listings -> 0 on high ground
+[2026-08-09 16:11]   Suffolk, VA          400 listings -> 0 on high ground
+[2026-08-09 16:11] RESULT: zero land currently listed on your high ground.
+[2026-08-09 16:11]         Not necessarily broken - coastal high-ground land is thin.
+[2026-08-09 16:11]         Loosen MATCH_M or drop the threshold to 15 ft to widen it.
+[2026-08-09 16:11]    (seeded 0 current listings as 'seen' - you'll only be emailed about NEW ones)

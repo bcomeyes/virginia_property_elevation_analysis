@@ -41,17 +41,66 @@ WORKING_EPSG = 32618
 M_TO_FT  = 3.280839895
 ACRE_M2  = 4046.8564224
 
+# Elevation is REPORTED, never a gate. Raw height above sea level turned out to
+# be a bad proxy for what Matt is looking for: the Holland Rd lots are the
+# highest ground in the search area (75 ft) and the flattest (relief 0.70), while
+# the Knotts Island calibration lot is only 6.9 ft yet sits in FEMA Zone X and
+# carries no flood insurance requirement. Flood zone answers the flood question;
+# terrain texture answers the seclusion question. Height answers neither.
+#
+# Kept as a tunable rather than deleted so a one-off experiment is still possible
+# (`--threshold 20`), but the default of 0 means nothing is ever excluded on
+# height. Note 0, not some negative number: tidal-marsh DEM cells legitimately
+# read slightly below sea level.
+DEFAULT_THRESHOLD_FT   = 0.0
+DEFAULT_MIN_HIGH_ACRES = 0.0
+
 VGIN = ("https://vginmaps.vdem.virginia.gov/arcgis/rest/services/"
         "VA_Base_Layers/VA_Parcels/MapServer/0/query")
+
+# NC OneMap, statewide parcels. LAYER 1 is the polygons -- layer 0 is centroids
+# and a point cannot intersect a point, so querying 0 silently returns nothing.
+# Field names below were read off the live service, not remembered.
+NCONE = ("https://services.nconemap.gov/secure/rest/services/"
+         "NC1Map_Parcels/MapServer/1/query")
+
+# The VA/NC line runs near this latitude across our search band. It is only a
+# hint for which service to ask FIRST -- if that one comes up empty we ask the
+# other, so a parcel straddling the line still resolves.
+STATE_LINE_LAT = 36.55
 
 _to_utm = Transformer.from_crs(4326, WORKING_EPSG, always_xy=True).transform
 
 
 # --------------------------------------------------------------------------- #
-def get_parcel_polygon(lat, lon, verbose=False):
-    """Ask VGIN for the parcel polygon containing (lat, lon). Returns (shapely
-    polygon in 4326, attrs dict) or (None, None)."""
-    params = {
+def _fetch_json(url, params, label, verbose=False):
+    """One ArcGIS query. Returns parsed JSON or None; never raises."""
+    full = url + "?" + urllib.parse.urlencode(params)
+    try:
+        with urllib.request.urlopen(full, timeout=40) as r:
+            body = r.read().decode()
+    except (urllib.error.URLError, ValueError) as e:
+        if verbose:
+            print(f"    {label} error: {type(e).__name__}: {e}")
+        return None
+    try:
+        js = json.loads(body)
+    except ValueError:
+        # ArcGIS web adaptors return an HTML error page when their backends are
+        # unreachable. Treat that as "no answer", not as a crash.
+        if verbose:
+            print(f"    {label}: response was not JSON ({body[:120]!r})")
+        return None
+    if isinstance(js, dict) and "error" in js:
+        if verbose:
+            print(f"    {label} service error: {js['error']}")
+        return None
+    return js
+
+
+def _query_vgin(lat, lon, verbose=False):
+    """Virginia parcels (VGIN). GeoJSON out. Returns (poly_4326, attrs) or (None, None)."""
+    js = _fetch_json(VGIN, {
         "f": "geojson",
         "geometry": f"{lon},{lat}",
         "geometryType": "esriGeometryPoint",
@@ -59,27 +108,122 @@ def get_parcel_polygon(lat, lon, verbose=False):
         "spatialRel": "esriSpatialRelIntersects",
         "outFields": "*",
         "returnGeometry": "true",
-    }
-    url = VGIN + "?" + urllib.parse.urlencode(params)
-    try:
-        with urllib.request.urlopen(url, timeout=40) as r:
-            js = json.loads(r.read().decode())
-    except (urllib.error.URLError, ValueError) as e:
-        if verbose:
-            print(f"    VGIN error: {type(e).__name__}: {e}")
+    }, "VGIN", verbose)
+    if not js:
         return None, None
-
     feats = js.get("features") or []
     if verbose:
         print(json.dumps(js, indent=2)[:1500])
     if not feats:
         return None, None
-    f = feats[0]
     try:
-        poly = shape(f["geometry"])
+        poly = shape(feats[0]["geometry"])
     except Exception:
         return None, None
-    return poly, f.get("properties", {})
+    return poly, feats[0].get("properties", {})
+
+
+def _rings_to_polygon(geom):
+    """Esri rings -> shapely. Outer rings are clockwise, holes counter-clockwise."""
+    rings = geom.get("rings") or []
+    if not rings:
+        return None
+    from shapely.geometry import Polygon, MultiPolygon
+
+    def signed_area(r):
+        return sum((r[i][0] * r[i + 1][1] - r[i + 1][0] * r[i][1])
+                   for i in range(len(r) - 1)) / 2.0
+
+    outers, holes = [], []
+    for r in rings:
+        (holes if signed_area(r) > 0 else outers).append(r)
+    if not outers:                       # all one direction; treat each as outer
+        outers, holes = rings, []
+    polys = []
+    for o in outers:
+        shell = Polygon(o)
+        inner = [h for h in holes if shell.contains(Polygon(h).representative_point())]
+        polys.append(Polygon(o, inner))
+    return polys[0] if len(polys) == 1 else MultiPolygon(polys)
+
+
+def _query_ncone(lat, lon, verbose=False):
+    """North Carolina parcels (NC OneMap). Esri JSON out -- geojson support is
+    not guaranteed on this service, and plain json is what we verified live."""
+    js = _fetch_json(NCONE, {
+        "f": "json",
+        "geometry": json.dumps({"x": lon, "y": lat,
+                                "spatialReference": {"wkid": 4326}}),
+        "geometryType": "esriGeometryPoint",
+        "inSR": 4326, "outSR": 4326,      # service is natively NC State Plane feet;
+        "spatialRel": "esriSpatialRelIntersects",   # without these the lon/lat is
+        "outFields": "*",                           # read as feet and matches nothing
+        "returnGeometry": "true",
+    }, "NCOneMap", verbose)
+    if not js:
+        return None, None
+    feats = js.get("features") or []
+    if verbose:
+        print(json.dumps(js, indent=2)[:1500])
+    if not feats:
+        return None, None
+    poly = _rings_to_polygon(feats[0].get("geometry", {}))
+    if poly is None or poly.is_empty:
+        return None, None
+    return poly, feats[0].get("attributes", {})
+
+
+# Reported-acreage field, per source. Used for the pin-landed-on-the-wrong-parcel
+# cross-check; NC publishes gisacres, VGIN's naming varies by contributing county.
+_ACRE_FIELDS = ("gisacres", "GIS_Acres", "ACRES", "Acres", "acres",
+                "CALC_ACRES", "LEGAL_ACRE", "deeded_acres")
+
+
+def _normalise(attrs, source):
+    """Add source-independent keys so callers never branch on which state it is."""
+    if attrs is None:
+        return None
+    out = dict(attrs)
+    out["_source"] = source
+    for k in _ACRE_FIELDS:
+        if k in attrs and attrs[k] not in (None, "", 0):
+            try:
+                out["_acres_reported"] = float(attrs[k])
+                break
+            except (TypeError, ValueError):
+                pass
+    for k in ("siteadd", "SITEADDRESS", "Address", "situs_addr", "ADDRESS"):
+        if attrs.get(k):
+            out["_address"] = str(attrs[k]).strip()
+            break
+    for k in ("ownname", "OWNER", "Owner", "OWNERNAME", "owner_name"):
+        if attrs.get(k):
+            out["_owner"] = str(attrs[k]).strip()
+            break
+    return out
+
+
+def get_parcel_polygon(lat, lon, verbose=False):
+    """Parcel polygon containing (lat, lon), from whichever state service has it.
+
+    Returns (shapely polygon in 4326, attrs dict) or (None, None).
+
+    Routing: latitude picks which service to ask first, then we ask the other if
+    the first has nothing. That means the STATE_LINE_LAT constant only needs to be
+    roughly right -- a parcel just north or south of the line still resolves, and
+    so does one in a county whose data is missing from its own state's service.
+    """
+    order = ((_query_vgin, "VGIN"), (_query_ncone, "NCOneMap"))
+    if lat < STATE_LINE_LAT:
+        order = order[::-1]
+
+    for fn, name in order:
+        poly, attrs = fn(lat, lon, verbose)
+        if poly is not None:
+            if verbose:
+                print(f"    parcel from {name}")
+            return poly, _normalise(attrs, name)
+    return None, None
 
 
 def pick_dem(poly_utm):
@@ -188,7 +332,7 @@ def terrain_metrics(ft, cell_m):
     return out
 
 
-def sample_parcel_elevation(poly_4326, threshold_ft=20.0, verbose=False):
+def sample_parcel_elevation(poly_4326, threshold_ft=DEFAULT_THRESHOLD_FT, verbose=False):
     """Clip the bare-earth DEM to the parcel and summarize its elevations."""
     poly_utm = shp_transform(_to_utm, poly_4326)
     cands = pick_dem(poly_utm)
@@ -255,9 +399,14 @@ def sample_parcel_elevation(poly_4326, threshold_ft=20.0, verbose=False):
     return res
 
 
-def check(lat, lon, threshold_ft=20.0, min_high_acres=0.25, verbose=False):
-    """Full test for one coordinate. qualifies = enough bare ground >= threshold
-    to place a pad on (min_high_acres), regardless of the pin's own elevation."""
+def check(lat, lon, threshold_ft=DEFAULT_THRESHOLD_FT,
+          min_high_acres=DEFAULT_MIN_HIGH_ACRES, verbose=False):
+    """Full test for one coordinate.
+
+    `qualifies` is NOT a verdict on the parcel. It only says the lot has at
+    least `min_high_acres` of ground above `threshold_ft`. Both default to 0,
+    so by default nothing is disqualified on elevation and every parcel comes
+    back with its full set of measurements to be ranked on later."""
     poly, attrs = get_parcel_polygon(lat, lon, verbose=verbose)
     if poly is None:
         return {"qualifies": None, "error": "no parcel found at point"}
@@ -266,10 +415,32 @@ def check(lat, lon, threshold_ft=20.0, min_high_acres=0.25, verbose=False):
         return {"qualifies": None, **stats}
     stats["qualifies"] = stats["high_acres"] >= min_high_acres
     stats["threshold_ft"] = threshold_ft
-    # a couple of owner/id fields if VGIN returned them
-    for k in ("PARCELID", "LOCALITY", "OWNERNAME", "GPIN"):
+
+    # source-independent fields the router normalised (works for VA and NC alike)
+    for k in ("_source", "_owner", "_address", "_acres_reported"):
+        if attrs and k in attrs:
+            stats[k.lstrip("_")] = attrs[k]
+
+    # a couple of raw id fields if the service returned them
+    for k in ("PARCELID", "LOCALITY", "OWNERNAME", "GPIN", "parno", "cntyname"):
         if attrs and k in attrs:
             stats[k.lower()] = attrs[k]
+
+    # Cross-check: does the polygon we measured match the acreage the county
+    # itself publishes? A large gap means the pin landed on a neighbouring
+    # parcel, which is silent and would otherwise poison every terrain metric.
+    # Compare against poly_acres (pure geometry), NOT parcel_acres (DEM-derived).
+    # A marsh or waterfront lot can legitimately have far fewer valid DEM cells
+    # than acres, and comparing that to the county figure would cry wolf on
+    # exactly the parcels we most want to look at.
+    rep = attrs.get("_acres_reported") if attrs else None
+    got = stats.get("poly_acres")
+    if rep and got:
+        stats["acres_ratio"] = round(got / rep, 3)
+        if not 0.85 <= stats["acres_ratio"] <= 1.15:
+            stats["acres_warning"] = (
+                f"measured {got:.2f} ac vs county-reported {rep:.2f} ac "
+                f"- pin may be on the wrong parcel")
     return stats
 
 
@@ -292,10 +463,14 @@ def run_test(threshold_ft, min_high_acres, limit):
                 rows.append(e)
     print(f"\n{len(rows)} land listings in the {lw.MIN_ACRES:g}-{lw.MAX_ACRES:g} "
           f"acre window across {len(lw.CITIES)} cities")
-    print(f"threshold = {threshold_ft:g} ft, need >= {min_high_acres} acres of it")
+    if threshold_ft > 0:
+        print(f"threshold = {threshold_ft:g} ft, need >= {min_high_acres} acres "
+              f"of it  [non-default: elevation IS filtering here]")
+    else:
+        print("no elevation filter (threshold 0) - height is reported, not judged")
     print("terrain is REPORTED, not filtered: relief/std/tri near zero = flat "
-          "(marsh, cleared field)\n")
-    hdr = (f"{'qual':4} {'max':>5} {'hi_ac':>6} {'lot_ac':>6} {'cov':>5} "
+          "(marsh, cleared field). tri discriminates better than relief.\n")
+    hdr = (f"{'src':4} {'max':>5} {'lot_ac':>6} {'cov':>5} "
            f"{'relief':>6} {'std':>5} {'tri':>5}  address")
     print(hdr)
     print("-" * len(hdr))
@@ -304,12 +479,15 @@ def run_test(threshold_ft, min_high_acres, limit):
         if r.get("error"):
             print(f"  ?? {r['error'][:44]:44}  {e['addr']}, {e['city']}")
             continue
-        q = "YES" if r["qualifies"] else " no"
+        # which state service answered, now that both are wired up
+        q = {"VGIN": "VA", "NCOneMap": "NC"}.get(r.get("source"), "??")
         w = "  !" + r["warn"] if r.get("warn") else ""
+        if r.get("acres_warning"):
+            w += "  !acreage"
         def n(k, w_=6, d=2):
             v = r.get(k)
             return f"{v:{w_}.{d}f}" if isinstance(v, (int, float)) else " " * w_
-        print(f" {q:4} {r['max_ft']:5.1f} {r['high_acres']:6.2f} "
+        print(f" {q:4} {r['max_ft']:5.1f} "
               f"{r['parcel_acres']:6.2f} {r['dem_coverage']:5.2f} "
               f"{n('relief_ft')} {n('std_ft',5)} {n('tri_ft',5)}  "
               f"{e['addr']}, {e['city']}{w}")
@@ -322,8 +500,10 @@ if __name__ == "__main__":
     g.add_argument("--probe", nargs=2, metavar=("LAT", "LON"), type=float)
     g.add_argument("--point", nargs=2, metavar=("LAT", "LON"), type=float)
     g.add_argument("--test", action="store_true")
-    p.add_argument("--threshold", type=float, default=20.0)
-    p.add_argument("--min-high-acres", type=float, default=0.25)
+    p.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD_FT,
+               help="ft; ground above this counts as 'high'. Default 0 "
+                    "= no elevation filtering, which is the intended mode.")
+    p.add_argument("--min-high-acres", type=float, default=DEFAULT_MIN_HIGH_ACRES)
     p.add_argument("--limit", type=int, default=40)
     a = p.parse_args()
 

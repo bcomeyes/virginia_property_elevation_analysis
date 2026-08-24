@@ -25,7 +25,7 @@ USAGE:
     ./parcel_elevation.py --test --threshold 15    # same, 15 ft bar
 """
 
-import argparse, json, sys, urllib.parse, urllib.request, urllib.error, warnings
+import argparse, json, sys, time, urllib.parse, urllib.request, urllib.error, warnings
 from pathlib import Path
 
 import numpy as np
@@ -69,19 +69,48 @@ NCONE = ("https://services.nconemap.gov/secure/rest/services/"
 # other, so a parcel straddling the line still resolves.
 STATE_LINE_LAT = 36.55
 
+# FEMA National Flood Hazard Layer, layer 28 = Flood Hazard Zones (polygons).
+# Queried with the PARCEL POLYGON, never the pin: a lot routinely spans several
+# zones and a point reports only one. The Knotts Island calibration lot is 74%
+# AE and 21% X -- the marsh is the AE, the buildable corner is the X. A point
+# query would have returned whichever one it happened to land in and hidden the
+# distinction that actually decides whether the lot is worth looking at.
+NFHL = ("https://hazards.fema.gov/arcgis/rest/services/public/"
+        "NFHL/MapServer/28/query")
+
+# Zones requiring flood insurance with a federally backed mortgage. VE is
+# coastal wave action and the most serious. Anything not in this set is
+# treated as open ground for the purposes of the ranking column.
+SFHA_ZONES = {"A", "AE", "AH", "AO", "AR", "A99", "V", "VE"}
+
 _to_utm = Transformer.from_crs(4326, WORKING_EPSG, always_xy=True).transform
 
 
 # --------------------------------------------------------------------------- #
-def _fetch_json(url, params, label, verbose=False):
-    """One ArcGIS query. Returns parsed JSON or None; never raises."""
+def _fetch_json(url, params, label, verbose=False, tries=3):
+    """One ArcGIS query, retried. Returns parsed JSON or None; never raises.
+
+    Retries exist because these services drop requests under load rather than
+    failing cleanly -- the same behaviour 3DEP showed when whole-locality DEM
+    fetches failed while small tiles succeeded. A dropped request is not a
+    finding about the parcel, so treating the first failure as an answer would
+    silently blank out exactly the large lots we care most about.
+    """
     full = url + "?" + urllib.parse.urlencode(params)
-    try:
-        with urllib.request.urlopen(full, timeout=40) as r:
-            body = r.read().decode()
-    except (urllib.error.URLError, ValueError) as e:
-        if verbose:
-            print(f"    {label} error: {type(e).__name__}: {e}")
+    body = None
+    for attempt in range(1, tries + 1):
+        try:
+            with urllib.request.urlopen(full, timeout=90) as r:
+                body = r.read().decode()
+            break
+        except Exception as e:
+            if attempt == tries:
+                if verbose:
+                    print(f"    {label} error after {tries} tries: "
+                          f"{type(e).__name__}: {e}")
+                return None
+            time.sleep(2 * attempt)
+    if body is None:
         return None
     try:
         js = json.loads(body)
@@ -224,6 +253,144 @@ def get_parcel_polygon(lat, lon, verbose=False):
                 print(f"    parcel from {name}")
             return poly, _normalise(attrs, name)
     return None, None
+
+
+def _esri_polygon(poly, max_vertices=250):
+    """shapely -> Esri rings JSON, for use as a query geometry.
+
+    Big rural parcels can carry hundreds of vertices, and the whole geometry
+    rides in the URL query string. That is what made the 36-acre Murphys Mill
+    and 21-acre Backwoods lookups fail while small lots went through. We
+    simplify the outline until it fits: a slightly generalised boundary changes
+    which flood zones a parcel touches essentially never, and a request that
+    completes beats an exact one that gets dropped.
+    """
+    from shapely.geometry import mapping
+
+    def n_verts(g):
+        gj_ = mapping(g)
+        if gj_["type"] == "Polygon":
+            return sum(len(r) for r in gj_["coordinates"])
+        return sum(len(r) for part in gj_["coordinates"] for r in part)
+
+    if n_verts(poly) > max_vertices:
+        # tolerance in degrees; ~1e-5 is roughly a metre at this latitude
+        for tol in (1e-5, 3e-5, 1e-4, 3e-4, 1e-3):
+            simple = poly.simplify(tol, preserve_topology=True)
+            if not simple.is_empty and n_verts(simple) <= max_vertices:
+                poly = simple
+                break
+        else:
+            poly = poly.convex_hull      # last resort, still the right locale
+
+    gj = mapping(poly)
+    if gj["type"] == "Polygon":
+        rings = [list(map(list, r)) for r in gj["coordinates"]]
+    else:
+        rings = [list(map(list, r)) for part in gj["coordinates"] for r in part]
+    return {"rings": rings, "spatialReference": {"wkid": 4326}}
+
+
+def _short_zone(zone, subty):
+    """Compact label. 'X' + '0.2 PCT ANNUAL CHANCE...' -> 'X0.2'."""
+    z = (zone or "?").strip()
+    sub = (subty or "").strip().upper()
+    if z == "X" and "0.2 PCT" in sub:
+        return "X0.2"
+    if "FLOODWAY" in sub:
+        return z + "-FW"
+    return z
+
+
+def flood_zones(poly_4326, verbose=False):
+    """FEMA flood picture for one parcel.
+
+    Returns a dict with:
+      flood        compact breakdown string, e.g. "AE 74 / X 21 / X0.2 5"
+      flood_open   acres in the LARGEST CONTIGUOUS non-SFHA piece of the lot
+      flood_sfha   fraction of the lot inside a Special Flood Hazard Area
+      flood_bfe    base flood elevation (ft) if the service publishes one
+
+    flood_open is the ranking number, and it is deliberately not an average.
+    A lot that is three-quarters AE marsh with a dry buildable corner is still
+    buyable -- Matt's cousin bought exactly that. What matters is the size of
+    the best usable piece, not the mean condition of the whole parcel.
+    """
+    from shapely.ops import unary_union
+
+    js = _fetch_json(NFHL, {
+        "f": "json",
+        "geometry": json.dumps(_esri_polygon(poly_4326)),
+        "geometryType": "esriGeometryPolygon",
+        "inSR": 4326, "outSR": 4326,
+        "spatialRel": "esriSpatialRelIntersects",
+        "outFields": "FLD_ZONE,ZONE_SUBTY,SFHA_TF,STATIC_BFE",
+        "returnGeometry": "true",
+    }, "NFHL", verbose)
+
+    if js is None:
+        return {"flood": "lookup failed"}
+
+    feats = js.get("features") or []
+    if not feats:
+        # Unmapped is NOT the same as safe. Say so rather than implying Zone X.
+        return {"flood": "not mapped"}
+
+    parcel_utm = shp_transform(_to_utm, poly_4326)
+    total = parcel_utm.area
+    if total <= 0:
+        return {"flood": "no parcel area"}
+
+    shares, open_parts, bfes = {}, [], []
+    for f in feats:
+        a = f.get("attributes", {})
+        zpoly = _rings_to_polygon(f.get("geometry", {}))
+        if zpoly is None or zpoly.is_empty:
+            continue
+        try:
+            inter = parcel_utm.intersection(shp_transform(_to_utm, zpoly))
+        except Exception:
+            continue
+        if inter.is_empty:
+            continue
+
+        label = _short_zone(a.get("FLD_ZONE"), a.get("ZONE_SUBTY"))
+        shares[label] = shares.get(label, 0.0) + inter.area
+
+        base = (a.get("FLD_ZONE") or "").strip().upper()
+        is_sfha = (a.get("SFHA_TF") == "T") or (base in SFHA_ZONES)
+        if is_sfha:
+            bfe = a.get("STATIC_BFE")
+            if bfe not in (None, -9999, "-9999", ""):
+                try:
+                    bfes.append(float(bfe))
+                except (TypeError, ValueError):
+                    pass
+        else:
+            open_parts.append(inter)
+
+    if not shares:
+        return {"flood": "no overlap"}
+
+    ordered = sorted(shares.items(), key=lambda kv: -kv[1])
+    out = {"flood": " / ".join(f"{k} {v/total*100:.0f}" for k, v in ordered)}
+
+    sfha_area = sum(v for k, v in shares.items()
+                    if k.split("-")[0].split("0.2")[0] in SFHA_ZONES)
+    out["flood_sfha"] = round(sfha_area / total, 3)
+
+    # Largest CONTIGUOUS non-SFHA piece -- one buildable corner beats the same
+    # acreage scattered in slivers.
+    if open_parts:
+        merged = unary_union(open_parts)
+        pieces = list(getattr(merged, "geoms", [merged]))
+        out["flood_open"] = round(max(pc.area for pc in pieces) / ACRE_M2, 2)
+    else:
+        out["flood_open"] = 0.0
+
+    if bfes:
+        out["flood_bfe"] = round(max(bfes), 1)
+    return out
 
 
 def pick_dem(poly_utm):
@@ -400,7 +567,7 @@ def sample_parcel_elevation(poly_4326, threshold_ft=DEFAULT_THRESHOLD_FT, verbos
 
 
 def check(lat, lon, threshold_ft=DEFAULT_THRESHOLD_FT,
-          min_high_acres=DEFAULT_MIN_HIGH_ACRES, verbose=False):
+          min_high_acres=DEFAULT_MIN_HIGH_ACRES, verbose=False, flood=True):
     """Full test for one coordinate.
 
     `qualifies` is NOT a verdict on the parcel. It only says the lot has at
@@ -433,6 +600,11 @@ def check(lat, lon, threshold_ft=DEFAULT_THRESHOLD_FT,
     # A marsh or waterfront lot can legitimately have far fewer valid DEM cells
     # than acres, and comparing that to the county figure would cry wolf on
     # exactly the parcels we most want to look at.
+    # FEMA flood picture. One extra HTTP call per parcel, so it can be turned
+    # off for bulk runs where only terrain matters.
+    if flood:
+        stats.update(flood_zones(poly, verbose=verbose))
+
     rep = attrs.get("_acres_reported") if attrs else None
     got = stats.get("poly_acres")
     if rep and got:
@@ -445,7 +617,7 @@ def check(lat, lon, threshold_ft=DEFAULT_THRESHOLD_FT,
 
 
 # --------------------------------------------------------------------------- #
-def run_test(threshold_ft, min_high_acres, limit):
+def run_test(threshold_ft, min_high_acres, limit, flood=True):
     """End-to-end against today's real land listings (needs land_watch.py)."""
     try:
         import land_watch as lw
@@ -470,12 +642,12 @@ def run_test(threshold_ft, min_high_acres, limit):
         print("no elevation filter (threshold 0) - height is reported, not judged")
     print("terrain is REPORTED, not filtered: relief/std/tri near zero = flat "
           "(marsh, cleared field). tri discriminates better than relief.\n")
-    hdr = (f"{'src':4} {'max':>5} {'lot_ac':>6} {'cov':>5} "
-           f"{'relief':>6} {'std':>5} {'tri':>5}  address")
+    hdr = (f"{'src':4} {'max':>5} {'lot_ac':>6} {'relief':>6} {'tri':>5} "
+           f"{'openac':>6}  {'flood':22}  address")
     print(hdr)
     print("-" * len(hdr))
     for e in rows[:limit]:
-        r = check(e["lat"], e["lon"], threshold_ft, min_high_acres)
+        r = check(e["lat"], e["lon"], threshold_ft, min_high_acres, flood=flood)
         if r.get("error"):
             print(f"  ?? {r['error'][:44]:44}  {e['addr']}, {e['city']}")
             continue
@@ -488,8 +660,9 @@ def run_test(threshold_ft, min_high_acres, limit):
             v = r.get(k)
             return f"{v:{w_}.{d}f}" if isinstance(v, (int, float)) else " " * w_
         print(f" {q:4} {r['max_ft']:5.1f} "
-              f"{r['parcel_acres']:6.2f} {r['dem_coverage']:5.2f} "
-              f"{n('relief_ft')} {n('std_ft',5)} {n('tri_ft',5)}  "
+              f"{r['parcel_acres']:6.2f} "
+              f"{n('relief_ft')} {n('tri_ft',5)} {n('flood_open',6)}  "
+              f"{str(r.get('flood','')):22}  "
               f"{e['addr']}, {e['city']}{w}")
     return 0
 
@@ -504,6 +677,8 @@ if __name__ == "__main__":
                help="ft; ground above this counts as 'high'. Default 0 "
                     "= no elevation filtering, which is the intended mode.")
     p.add_argument("--min-high-acres", type=float, default=DEFAULT_MIN_HIGH_ACRES)
+    p.add_argument("--no-flood", action="store_true",
+                   help="skip the FEMA lookup (one HTTP call per parcel)")
     p.add_argument("--limit", type=int, default=40)
     a = p.parse_args()
 
@@ -513,4 +688,5 @@ if __name__ == "__main__":
         print(json.dumps(check(a.point[0], a.point[1], a.threshold,
                                a.min_high_acres, verbose=True), indent=2))
     else:
-        sys.exit(run_test(a.threshold, a.min_high_acres, a.limit))
+        sys.exit(run_test(a.threshold, a.min_high_acres, a.limit,
+                          flood=not a.no_flood))

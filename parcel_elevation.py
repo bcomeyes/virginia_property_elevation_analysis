@@ -617,24 +617,74 @@ def check(lat, lon, threshold_ft=DEFAULT_THRESHOLD_FT,
 
 
 # --------------------------------------------------------------------------- #
-def run_test(threshold_ft, min_high_acres, limit, flood=True):
+# Fields a county uses to identify a parcel, best first. NC OneMap publishes
+# parno; VGIN's naming varies by contributing locality.
+_PARCEL_ID_FIELDS = ("parno", "PARCELID", "GPIN", "gpin", "parcel_id", "PIN")
+
+
+def _parcel_key(stats):
+    """Stable identity for a parcel, or None if the county gave us nothing.
+
+    NOT used for merging rows in --test. A duplicate row costs a glance; a
+    wrongly merged row loses a property, and that trade is not worth it.
+    This exists for the rejection list, where identity DOES matter: a lot Matt
+    has ruled out should stay ruled out when it relists under a new MLS id.
+    """
+    for k in _PARCEL_ID_FIELDS:
+        v = stats.get(k.lower()) or stats.get(k)
+        if v not in (None, "", 0, "0"):
+            county = stats.get("cntyname") or stats.get("locality") or ""
+            return f"{county}|{v}".strip("|")
+    return None
+
+
+def _dedupe_listings(rows):
+    """Collapse listings that share a geocode to within about a metre.
+
+    The same lot routinely appears twice: relisted under a new MLS id, or two
+    agents on one parcel. Today's run showed 2281 Kings Fork Rd twice, and the
+    NC baseline showed Tulls Creek Rd and Caratoke Hwy doubled.
+
+    Deliberately strict. Matching on "nearby pin + same acreage" would be
+    wrong: E Ridge Rd lots 9 through 12 in Shawboro are four DIFFERENT parcels,
+    all exactly 10.0 acres, side by side. Only an identical geocode counts here.
+    The authoritative merge happens after the county tells us the parcel id.
+    """
+    out, seen = [], {}
+    for e in rows:
+        key = (round(e["lat"], 5), round(e["lon"], 5))
+        if key in seen:
+            prior = seen[key]
+            prior.setdefault("dupes", []).append(e.get("href"))
+            continue
+        seen[key] = e
+        out.append(e)
+    return out
+
+
+def run_test(threshold_ft, min_high_acres, limit, flood=True, nc=False):
     """End-to-end against today's real land listings (needs land_watch.py)."""
     try:
         import land_watch as lw
     except ImportError:
         print("land_watch.py not found next to this script - needed for --test")
         return 1
-    pockets = None
+    cities = lw.CITIES_VA + lw.CITIES_NC if nc else lw.CITIES_VA
     rows = []
-    for city in lw.CITIES:
+    for city in cities:
         raw = lw.fetch_city(city, days_on=0)
         for L in raw:
             e = lw.extract(L)
             if "land" in e["type"] and e["lat"] and e["acres"] and \
                lw.MIN_ACRES <= e["acres"] <= lw.MAX_ACRES:
                 rows.append(e)
+    n_raw = len(rows)
+    rows = _dedupe_listings(rows)
+    if n_raw != len(rows):
+        print(f"\n{n_raw - len(rows)} duplicate listing(s) collapsed on identical geocode")
     print(f"\n{len(rows)} land listings in the {lw.MIN_ACRES:g}-{lw.MAX_ACRES:g} "
-          f"acre window across {len(lw.CITIES)} cities")
+          f"acre window across {len(cities)} jurisdiction(s) "
+          f"({'VA+NC' if nc else 'VA only, use --nc to add North Carolina'})")
     if threshold_ft > 0:
         print(f"threshold = {threshold_ft:g} ft, need >= {min_high_acres} acres "
               f"of it  [non-default: elevation IS filtering here]")
@@ -679,6 +729,8 @@ if __name__ == "__main__":
     p.add_argument("--min-high-acres", type=float, default=DEFAULT_MIN_HIGH_ACRES)
     p.add_argument("--no-flood", action="store_true",
                    help="skip the FEMA lookup (one HTTP call per parcel)")
+    p.add_argument("--nc", action="store_true",
+                   help="include the three NC counties in --test (off by default)")
     p.add_argument("--limit", type=int, default=40)
     a = p.parse_args()
 
@@ -689,4 +741,4 @@ if __name__ == "__main__":
                                a.min_high_acres, verbose=True), indent=2))
     else:
         sys.exit(run_test(a.threshold, a.min_high_acres, a.limit,
-                          flood=not a.no_flood))
+                          flood=not a.no_flood, nc=a.nc))

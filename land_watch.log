@@ -7,3 +7,143 @@
 [2026-08-09 16:11]         Not necessarily broken - coastal high-ground land is thin.
 [2026-08-09 16:11]         Loosen MATCH_M or drop the threshold to 15 ft to widen it.
 [2026-08-09 16:11]    (seeded 0 current listings as 'seen' - you'll only be emailed about NEW ones)
+[2026-08-24 16:37] === BASELINE: all current land in the acreage window ===
+[2026-08-24 16:37] baseline: 6 jurisdictions, days_on=all
+[2026-08-24 16:38]   Chesapeake, VA            982 listings -> 7 land in window
+[2026-08-24 16:39]   Virginia Beach, VA       1300 listings -> 21 land in window
+[2026-08-24 16:40]   Suffolk, VA               726 listings -> 10 land in window
+[2026-08-24 16:41]   Currituck County, NC      675 listings -> 71 land in window
+[2026-08-24 16:41]   Camden County, NC         137 listings -> 11 land in window
+[2026-08-24 16:41]   Gates County, NC           70 listings -> 9 land in window
+[2026-08-24 16:41] RESULT: 129 land listing(s) in the window right now:
+[2026-08-24 16:41]    3000 North Landing Rd Unit 1, Virginia Beach - $15,000,000, 56.7ac  |  https://www.realtor.com/realestateandhomes-detail/3000-North-Landing-Rd-1_Virginia-Beach_VA_23456_M99013-48413
+[2026-08-24 16:41]    Long Point Is Lot 1-5, Barco - $675,000, 54.0ac  |  https://www.realtor.com/realestateandhomes-detail/Long-Point-Is-Lot-1-5_Barco_NC_27917_M98361-10325
+[2026-08-24 16:41]    133 Blue Heron Ln, Knotts Island - $635,000, 51.0ac  |  https://www.realtor.com/realestateandhomes-detail/133-Blue-Heron-Ln_Knotts-Island_NC_27950_M56852-16349
+[2026-08-24 16:41]    3240 Holland Rd, Suffolk - $3,100,000, 45.8ac  |  https://www.realtor.com/realestateandhomes-detail/3240-Holland-Rd_Suffolk_VA_23434_M99482-88032
+[2026-08-24 16:41]    US-158 Bus, Gatesville - $250,000, 44.5ac  |  https://www.realtor.com/realestateandhomes-detail/Highway-158-Business_Gates_NC_27937_M92337-37125
+[2026-08-24 16:41]    River Rd N, Camden - $99,000, 37.3ac  |  https://www.realtor.com/realestateandhomes-detail/River-Rd-N_Camden_NC_27921_M98757-90249
+[2026-08-24 16:41]    909 Murphys Mill Rd, Suffolk - $3,160,000, 37.2ac  |  https://www.realtor.com/realestateandhomes-detail/909-Murphys-Mill-Rd_Suffolk_VA_23434_M55163-74603
+[2026-08-24 16:41]    Soney Ln, Gatesville - $119,900, 26.5ac  |  https://www.realtor.com/realestateandhomes-detail/Soney-Ln_Gatesville_NC_27938_M93193-96594
+[2026-08-24 16:41]    1832 Munden Point Rd, Virginia Beach - $525,000, 25.3ac  |  https://www.realtor.com/realestateandhomes-detail/1832-Munden-Point-Rd_Virginia-Beach_VA_23457_M93104-14593
+[2026-08-24 16:41]    Tulls Creek Rd, Moyock - $1,299,950, 24.1ac  |  https://www.realtor.com/realestateandhomes-detail/Tulls-Creek-Rd_Moyock_NC_27958_M94387-72457
+[2026-08-24 16:41]    Tulls Creek Rd, Moyock - $1,299,950, 24.0ac  |  https://www.realtor.com/realestateandhomes-detail/Tulls-Creek-Rd_Moyock_NC_27958_M96031-05373
+[2026-08-24 16:41]    Caratoke Hwy Lot 3, Barco - $327,000, 22.9ac  |  https://www.realtor.com/realestateandhomes-detail/Caratoke-Hwy-Lot-3_Barco_NC_27917_M95565-02170
+[2026-08-24 16:41]    4500 Backwoods Rd, Chesapeake - $840,000, 21.0ac  |  https://www.realtor.com/realestateandhomes-detail/4500-Backwoods-Rd_Chesapeake_VA_23322_M99788-82154
+[2026-08-24 16:41]    3984 North Landing Rd, Virginia Beach - $1,395,000, 21.0ac  |  https://www.realtor.com/realestateandhomes-detail/3984-North-Landing-Rd_Virginia-Beach_VA_23456_M60670-27666
+[2026-08-24 16:41]    1101 Cypress Chapel Rd, Suffolk - $250,000, 18.7ac  |  https://www.realtor.com/realestateandhomes-detail/1101-Cypress-Chapel-Rd_Suffolk_VA_23434_M66569-06478
+[2026-08-24 16:41]    Caratoke Hwy, Moyock - $899,900, 17.9ac  |  https://www.realtor.com/realestateandhomes-detail/Caratoke-Hwy_Moyock_NC_27958_M90994-45213
+[2026-08-24 16:41]    3316 Holland Rd, Suffolk - $1,381,600, 17.3ac  |  https://www.realtor.com/realestateandhomes-detail/3316-Holland-Rd_Suffolk_VA_23434_M50922-35107
+[2026-08-24 16:41]    Little Island Rd Lot 5A, Eure - $175,000, 16.2ac  |  https://www.realtor.com/realestateandhomes-detail/Little-Island-Rd-Lot-5A_Eure_NC_27935_M97852-14496
+[2026-08-24 16:41]    Gates Bank Rd, Gates - $139,900, 15.9ac  |  https://www.realtor.com/realestateandhomes-detail/Gates-Bank-Rd_Gates_NC_27937_M91408-49788
+[2026-08-24 16:41]    Caratoke Hwy, Moyock - $1,230,000, 14.5ac  |  https://www.realtor.com/realestateandhomes-detail/Caratoke-Hwy_Moyock_NC_27958_M92698-32612
+[2026-08-24 16:41]    Caratoke Hwy, Moyock - $1,230,000, 14.5ac  |  https://www.realtor.com/realestateandhomes-detail/Caratoke-Hwy_Moyock_NC_27958_M92658-85066
+[2026-08-24 16:41]    959 Waterlily Rd, Coinjock - $335,000, 12.7ac  |  https://www.realtor.com/realestateandhomes-detail/959-Waterlily-Rd_Coinjock_NC_27923_M57348-36363
+[2026-08-24 16:41]    2293 Princess Anne Rd, Virginia Beach - $1,080,000, 12.3ac  |  https://www.realtor.com/realestateandhomes-detail/2293-Princess-Anne-Rd_Virginia-Beach_VA_23456_M57967-18189
+[2026-08-24 16:41]    1928 Moses Grandy Trl, Chesapeake - $982,800, 12.3ac  |  https://www.realtor.com/realestateandhomes-detail/1928-Moses-Grandy-Trl_Chesapeake_VA_23323_M68512-39717
+[2026-08-24 16:41]    13 E Ridge Rd Lot 13, Shawboro - $219,900, 12.0ac  |  https://www.realtor.com/realestateandhomes-detail/E-Ridge-Rd-Lot-13_Shawboro_NC_27973_M93956-97306
+[2026-08-24 16:41]    100 Cruella Ln, Shawboro - $250,000, 10.6ac  |  https://www.realtor.com/realestateandhomes-detail/100-Cruella-Ln_Shawboro_NC_27973_M59532-89899
+[2026-08-24 16:41]    1218 Elleanor Rd, Gates - $65,000, 10.5ac  |  https://www.realtor.com/realestateandhomes-detail/Road-1218-Elleanor-Rd_Gates_NC_27937_M50165-59533
+[2026-08-24 16:41]    270 Guinea Mill Rd, Moyock - $319,000, 10.1ac  |  https://www.realtor.com/realestateandhomes-detail/270-Guinea-Mill-Rd_Moyock_NC_27958_M97754-42837
+[2026-08-24 16:41]    10 E Ridge Rd Lot 10, Shawboro - $159,000, 10.0ac  |  https://www.realtor.com/realestateandhomes-detail/E-Ridge-Rd-Lot-10_Shawboro_NC_27973_M91840-38916
+[2026-08-24 16:41]    9 E Ridge Rd Lot 9, Shawboro - $159,000, 10.0ac  |  https://www.realtor.com/realestateandhomes-detail/9-E-Ridge-Rd_Shawboro_NC_27973_M99079-25078
+[2026-08-24 16:41]    12 E Ridge Rd Lot 12, Shawboro - $199,000, 10.0ac  |  https://www.realtor.com/realestateandhomes-detail/E-Ridge-Rd-Lot-12_Shawboro_NC_27973_M95017-25950
+[2026-08-24 16:41]    116 Bullyard Station Ct Lot 3, Moyock - $215,000, 10.0ac  |  https://www.realtor.com/realestateandhomes-detail/116-Bullyard-Station-Ct-3_Moyock_NC_27958_M99294-84711
+[2026-08-24 16:41]    11 E Ridge Rd Lot 11, Shawboro - $199,000, 10.0ac  |  https://www.realtor.com/realestateandhomes-detail/E-Ridge-Rd-Lot-11_Shawboro_NC_27973_M92880-42376
+[2026-08-24 16:41]    10AC Gum Bridge Rd, Virginia Beach - $775,000, 10.0ac  |  https://www.realtor.com/realestateandhomes-detail/10AC-Gum-Bridge-Rd_Virginia-Beach_VA_23457_M95324-70947
+[2026-08-24 16:41]    Highway S Lot 9, Camden - $179,900, 10.0ac  |  https://www.realtor.com/realestateandhomes-detail/Highway-S-Lot-9_Camden_NC_27921_M94161-51041
+[2026-08-24 16:41]    Highway 343 Lot 9, Camden - $179,900, 10.0ac  |  https://www.realtor.com/realestateandhomes-detail/Highway-343-Lot-9_Camden_NC_27921_M93495-45497
+[2026-08-24 16:41]    261 Old Swamp Rd Lot C, South Mills - $179,000, 9.8ac  |  https://www.realtor.com/realestateandhomes-detail/261-Old-Swamp-Rd-C_South-Mills_NC_27976_M94275-19891
+[2026-08-24 16:41]    113 S Trotman Rd, Camden - $250,000, 9.8ac  |  https://www.realtor.com/realestateandhomes-detail/113-S-Trotman-Rd_Camden_NC_27921_M54494-06849
+[2026-08-24 16:41]    Kings Land Ct Lot 3, Gates - $59,900, 9.3ac  |  https://www.realtor.com/realestateandhomes-detail/Kings-Land-Ct-Lot-3_Gates-County_NC_27937_M90120-96731
+[2026-08-24 16:41]    408 Sailboat Rd Lot H25, Shiloh - $15,000, 9.2ac  |  https://www.realtor.com/realestateandhomes-detail/408-Sailboat-Rd_Shiloh_NC_27974_M96762-58878
+[2026-08-24 16:41]    Paige Riddick Rd, Gates - $65,000, 8.0ac  |  https://www.realtor.com/realestateandhomes-detail/Paige-Riddick-Rd_Gates_NC_27937_M56899-43925
+[2026-08-24 16:41]    29 Gale Ave, Chesapeake - $50,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/29-Gale-Ave_Chesapeake_VA_23323_M55046-70225
+[2026-08-24 16:41]    4999 Clifton St, Chesapeake - $75,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/4999-Clifton-St_Chesapeake_VA_23320_M90675-56295
+[2026-08-24 16:41]    2716 Seven Eleven Rd, Chesapeake - $234,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2716-Seven-Eleven-Rd_Chesapeake_VA_23322_M58230-19874
+[2026-08-24 16:41]    409 B St, Chesapeake - $15,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/409-B-St_Chesapeake_VA_23324_M67766-10556
+[2026-08-24 16:41]    411 B St, Chesapeake - $15,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/411-B-St_Chesapeake_VA_23324_M62125-21426
+[2026-08-24 16:41]    3665 Sandpiper Rd Unit 96, Virginia Beach - $319,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/3665-Sandpiper-Rd-96_Virginia-Beach_VA_23456_M96132-67438
+[2026-08-24 16:41]    3665 Sandpiper Rd Unit 88, Virginia Beach - $325,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/3665-Sandpiper-Rd-88_Virginia-Beach_VA_23456_M90511-16841
+[2026-08-24 16:41]    3665 Sandpiper Rd Unit 95A, Virginia Beach - $314,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/3665-Sandpiper-Rd-A95_Virginia-Beach_VA_23456_M56141-65695
+[2026-08-24 16:41]    3665 Sandpiper Rd Unit 128, Virginia Beach - $404,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/3665-Sandpiper-Rd-128_Virginia-Beach_VA_23456_M90995-82773
+[2026-08-24 16:41]    3665 Sandpiper Rd Unit 148, Virginia Beach - $345,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/3665-Sandpiper-Rd-Lot-148_Virginia-Beach_VA_23456_M97279-78423
+[2026-08-24 16:41]    3665 Sandpiper Rd Lot 58, Virginia Beach - $269,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/3665-Sandpiper-Rd-Lot-58_Virginia-Beach_VA_23456_M95216-52553
+[2026-08-24 16:41]    3665 Sandpiper Rd Unit 198, Virginia Beach - $225,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/3665-Sandpiper-Rd-198_Virginia-Beach_VA_23456_M92959-60705
+[2026-08-24 16:41]    3665 Sandpiper Rd Lot 8, Virginia Beach - $345,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/3665-Sandpiper-Rd-Lot-8_Virginia-Beach_VA_23456_M95656-72596
+[2026-08-24 16:41]    3665 Sandpiper Rd Lot 41, Virginia Beach - $399,890, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/3665-Sandpiper-Rd-Lot-41_Virginia-Beach_VA_23456_M99511-70539
+[2026-08-24 16:41]    3665 Sandpiper Rd Unit 235, Virginia Beach - $185,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/3665-Sandpiper-Rd-235_Virginia-Beach_VA_23456_M97834-36569
+[2026-08-24 16:41]    3665 Sandpiper Rd Unit 120, Virginia Beach - $315,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/3665-Sandpiper-Rd_Virginia-Beach_VA_23456_M97650-03594
+[2026-08-24 16:41]    3665 Sandpiper Rd Unit 92, Virginia Beach - $299,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/3665-Sandpiper-Rd-Lot-92_Virginia-Beach_VA_23456_M94907-29377
+[2026-08-24 16:41]    3665 Sandpiper Rd Unit 161, Virginia Beach - $264,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/3665-Sandpiper-Rd-161_Virginia-Beach_VA_23456_M57386-93709
+[2026-08-24 16:41]    3665 Sandpiper Rd Unit 236, Virginia Beach - $195,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/3665-Sandpiper-Rd-236_Virginia-Beach_VA_23456_M99241-07948
+[2026-08-24 16:41]    3665 Sandpiper Rd Unit 237, Virginia Beach - $195,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/3665-Sandpiper-Rd-237_Virginia-Beach_VA_23456_M98008-03928
+[2026-08-24 16:41]    1268 Hawk Ave, Virginia Beach - $59,400, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/1268-Hawk-Ave_Virginia-Beach_VA_23453_M56914-69354
+[2026-08-24 16:41]    4225 Clifton St, Suffolk - $55,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/4225-Clifton-St_Suffolk_VA_23435_M53724-74995
+[2026-08-24 16:41]    4999 Clifton St, Chesapeake - $75,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/4999-Clifton-St_Chesapeake_VA_23320_M90675-56295
+[2026-08-24 16:41]    145 Dutch Rd, Suffolk - $60,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/145-Dutch-Rd_Suffolk_VA_23437_M66435-18773
+[2026-08-24 16:41]    328 N Lloyd St, Suffolk - $39,999, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/328-N-Lloyd-St_Suffolk_VA_23434_M57167-69106
+[2026-08-24 16:41]    4441 Pruden Blvd, Suffolk - $1,950,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/4441-Pruden-Blvd_Suffolk_VA_23434_M58500-40800
+[2026-08-24 16:41]    4441 Pruden Blvd, Suffolk - $1,950,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/4441-Pruden-Blvd_Suffolk_VA_23434_M58500-40800
+[2026-08-24 16:41]    841 Monteray Dr Lot 316, Corolla - $145,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/841-Monteray-Dr-316_Corolla_NC_27927_M98683-66995
+[2026-08-24 16:41]    2322 Sandfiddler Rd Lot 2, Corolla - $280,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2322-Sandfiddler-Rd-2_Corolla_NC_27927_M97584-51617
+[2026-08-24 16:41]    144 Glenwood Dr Lot 4, Moyock - $115,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/144-Glenwood-Dr-4_Moyock_NC_27958_M98005-16144
+[2026-08-24 16:41]    1938 Sandfiddler Rd Lot E, Corolla - $239,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/1938-Sandfiddler-Rd-E_Corolla_NC_27927_M94630-25685
+[2026-08-24 16:41]    2373 Sandfiddler Rd Lot 3, Corolla - $449,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2373-Sandfiddler-Rd-3_Corolla_NC_27927_M97945-67306
+[2026-08-24 16:41]    1675 Ocean Pearl Rd, Corolla - $140,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/1675-Ocean-Pearl-Rd_Corolla_NC_27927_M57183-05815
+[2026-08-24 16:41]    920 Plover Ct Lot 28R, Corolla - $649,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/920-Plover-Rd-28R_Corolla_NC_27927_M98164-56222
+[2026-08-24 16:41]    1675 Ocean Pearl Rd Lot 13, Corolla - $140,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/1675-Ocean-Pearl-Rd-13_Corolla_NC_27927_M97642-53022
+[2026-08-24 16:41]    2305 Carova Rd Lot 15, Corolla - $67,500, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2305-Carova-Rd-15_Corolla_NC_27927_M93585-34994
+[2026-08-24 16:41]    512 Robin Ln Lot 35, Corolla - $59,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/512-Robin-Ln-35_Corolla_NC_27927_M97409-39702
+[2026-08-24 16:41]    2060 Sandpiper Rd Lot 183, Corolla - $99,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2060-Sandpiper-Rd-183_Corolla_NC_27927_M93036-80893
+[2026-08-24 16:41]    2356 Carova Rd Lot 10, Corolla - $92,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2356-Carova-Rd-10_Corolla_NC_27927_M97539-18563
+[2026-08-24 16:41]    Survey Rd Lot 3, Moyock - $824,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/Survey-Rd-Lot-3_Moyock_NC_27958_M98441-56310
+[2026-08-24 16:41]    1637 Sandfiddler Rd Lot 8, Corolla - $25,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/1637-Sandfiddler-Rd-8_Corolla_NC_27927_M90858-16096
+[2026-08-24 16:41]    2333 Swan Island Rd Lot 17, Corolla - $55,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2333-Swan-Island-Rd-17_Corolla_NC_27927_M92964-28565
+[2026-08-24 16:41]    2236 Sandpiper Rd Lot 7, Corolla - $124,999, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2236-Sandpiper-Rd-7_Corolla_NC_27927_M96410-23545
+[2026-08-24 16:41]    2248 Sandpiper Rd Lot 1, Corolla - $125,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2248-Sandpiper-Rd-1_Corolla_NC_27927_M99077-46791
+[2026-08-24 16:41]    Caratoke Hwy, Currituck - $2,000,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/Caratoke-Hwy_Currituck_NC_27929_M99838-62802
+[2026-08-24 16:41]    1508 Catesbys Run Lot 5, Corolla - $399,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/1508-Catesbys-Run-Lot-5_Corolla_NC_27927_M92386-24729
+[2026-08-24 16:41]    1272 Sandcastle Dr Lot 161, Corolla - $695,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/1272-Sandcastle-Dr-161_Corolla_NC_27927_M93291-26002
+[2026-08-24 16:41]    3611 Caratoke Hwy, Maple - $400,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/3611-Caratoke-Hwy_Maple_NC_27956_M57516-41836
+[2026-08-24 16:41]    1608 Ocean Pearl Rd Lot 8, Corolla - $145,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/1608-Ocean-Pearl-Rd-8_Corolla_NC_27927_M95586-83536
+[2026-08-24 16:41]    133 Long Point Cir Lot 47, Powells Point - $110,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/133-Long-Point-Cir-47_Powells-Point_NC_27966_M97898-39597
+[2026-08-24 16:41]    2363 Swan Island Rd Lot 19, Corolla - $47,500, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2363-Swan-Island-Rd-19_Corolla_NC_27927_M93880-04984
+[2026-08-24 16:41]    674 Wild Cherry Ct Lot 243, Corolla - $315,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/674-Wild-Cherry-Ct-243_Corolla_NC_27927_M96982-81284
+[2026-08-24 16:41]    1659 Sandfiddler Rd Lot 10, Corolla - $50,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/1659-Sandfiddler-Rd-10_Corolla_NC_27927_M92026-81942
+[2026-08-24 16:41]    1607B Sandfiddler Rd Lot 11, Corolla - $50,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/1607B-Sandfiddler-Rd-11_Corolla_NC_27927_M92522-71110
+[2026-08-24 16:41]    1661 Sandfiddler Rd Lot 9, Corolla - $50,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/1661-Sandfiddler-Rd-9_Corolla_NC_27927_M95929-16658
+[2026-08-24 16:41]    1511 Catesbys Run Lot 3, Corolla - $549,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/1511-Catesbys-Run-Lot-3_Corolla_NC_27927_M94846-56944
+[2026-08-24 16:41]    1695 Ridge Rd Lot 118, Corolla - $99,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/1695-Ridge-Rd-Lot-118_Corolla_NC_27927_M98693-37585
+[2026-08-24 16:41]    2148 Sandpiper Rd Lot 218, Corolla - $139,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2148-Sandpiper-Rd-218_Corolla_NC_27927_M90633-53089
+[2026-08-24 16:41]    118 Dolphin Ct Lot 47, Grandy - $279,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/104-Dolphin-Ct-47_Grandy_NC_27939_M94208-46615
+[2026-08-24 16:41]    2226 Sailfish Rd Unit 45, Corolla - $165,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2226-Sailfish-Rd-Unit-45_Corolla_NC_27927_M92408-08593
+[2026-08-24 16:41]    812 Whalehead Dr, Corolla - $625,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/812-Whalehead-Dr_Corolla_NC_27927_M52778-88225
+[2026-08-24 16:41]    744 Dotties Walk Lot 279, Corolla - $399,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/744-Dotties-Walk-279_Corolla_NC_27927_M93253-29698
+[2026-08-24 16:41]    2171 Sandfiddler Rd Lot 15, Corolla - $450,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2171-Sandfiddler-Rd-15_Corolla_NC_27927_M98573-36773
+[2026-08-24 16:41]    2337 Carova Rd Lot 19, Corolla - $80,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2337-Carova-Rd-19_Corolla_NC_27927_M96317-20013
+[2026-08-24 16:41]    2383-A Sandfiddler Rd Lot 12, Corolla - $549,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2383A-Sandfiddler-Rd-12_Corolla_NC_27927_M96126-25413
+[2026-08-24 16:41]    1671 Sandpiper Rd Lot 23, Corolla - $349,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/1671-Sandfiddler-Rd-23_Corolla_NC_27927_M94543-98359
+[2026-08-24 16:41]    2143 Sandpiper Rd Lot 120, Corolla - $129,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2143-Sandpiper-Rd-120_Corolla_NC_27927_M95286-40531
+[2026-08-24 16:41]    2317 Sandpiper Rd Lot 21, Corolla - $139,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2317-Sandpiper-Rd-21_Corolla_NC_27927_M99344-45710
+[2026-08-24 16:41]    1686 Ocean Pearl Rd Lot 6, Corolla - $59,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/1686-Ocean-Pearl-Rd-6_Corolla_NC_27927_M94899-46847
+[2026-08-24 16:41]    1663 Midland Rd Lot 7, Corolla - $164,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/1663-Midland-Rd-7_Corolla_NC_27927_M93397-00809
+[2026-08-24 16:41]    003 Caratoke Hwy, Currituck - $2,000,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/003-Caratoke-Hwy_Currituck_NC_27929_M92146-73570
+[2026-08-24 16:41]    5720 Caratoke Hwy, Poplar Branch - $439,500, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/5720-Caratoke-Hwy_Poplar-Branch_NC_27965_M98926-84322
+[2026-08-24 16:41]    2338 Ocean Pearl Rd Lot 6, Corolla - $79,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2338-Ocean-Pearl-Rd-6_Corolla_NC_27927_M91155-57131
+[2026-08-24 16:41]    2006 Sea Gull Rd Lot 86, Corolla - $199,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2006-Sea-Gull-Rd-86_Corolla_NC_27927_M90754-74056
+[2026-08-24 16:41]    2336 Sandpiper Rd Lot 7, Corolla - $99,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2336-Sandpiper-Rd-7_Corolla_NC_27927_M90278-42014
+[2026-08-24 16:41]    2131 Sandpiper Rd Lot 124, Corolla - $139,500, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2131-Sandpiper-Rd-124_Corolla_NC_27927_M90135-83158
+[2026-08-24 16:41]    2391 Ocean Pearl Rd Lot 21, Corolla - $59,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2391-Ocean-Pearl-Rd-21_Corolla_NC_27927_M95689-01577
+[2026-08-24 16:41]    2239 Sandfiddler Rd Lot 8, Corolla - $429,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/2239-Sandfiddler-Rd-8_Corolla_NC_27927_M97720-84976
+[2026-08-24 16:41]    780 Crown Point Cir Lot 56, Corolla - $160,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/780-Crown-Point-Cir-56_Corolla_NC_27927_M94780-71037
+[2026-08-24 16:41]    781 Kings Grant Dr Lot 64, Corolla - $160,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/781-Kings-Grant-Dr-64_Corolla_NC_27927_M91899-34190
+[2026-08-24 16:41]    1976 Sandpiper Rd Lot 66, Corolla - $50,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/1976-Sandpiper-Rd-66_Corolla_NC_27927_M99295-36886
+[2026-08-24 16:41]    102 Boxcar Way, Camden - $175,500, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/102-Boxcar-Way_Camden_NC_27921_M68548-47939
+[2026-08-24 16:41]    109 Investors Way, Camden - $112,500, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/109-Investors-Way_Camden_NC_27921_M68570-46630
+[2026-08-24 16:41]    103 High Rd Lot 9, Shiloh - $70,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/103-High-Rd-9_Shiloh_NC_27974_M95996-70313
+[2026-08-24 16:41]    277 Old Swamp Risd Rd Lot A, South Mills - $140,000, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/277-Old-Swamp-Rd-A_South-Mills_NC_27976_M93003-06799
+[2026-08-24 16:41]    220 Horseshoe Rd Lot 1, South Mills - $129,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/220-Horseshoe-Rd-1_South-Mills_NC_27976_M93156-01016
+[2026-08-24 16:41]    Gates Bank Rd, Gates - $139,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/Gates-Bank-Rd_Gates_NC_27937_M95389-04095
+[2026-08-24 16:41]    Brinkley Rd, Corapeake - $19,900, acreage n/a  |  https://www.realtor.com/realestateandhomes-detail/Brinkley-Rd_Corapeake_NC_27926_M95257-68883
+[2026-08-24 16:41]         If these look right, the filter works. Cron will alert on NEW ones.
+[2026-08-24 16:41]    (seeded 127 current listings as 'seen' - you'll only be emailed about NEW ones)

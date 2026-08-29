@@ -669,22 +669,19 @@ def run_test(threshold_ft, min_high_acres, limit, flood=True, nc=False):
     except ImportError:
         print("land_watch.py not found next to this script - needed for --test")
         return 1
-    cities = lw.CITIES_VA + lw.CITIES_NC if nc else lw.CITIES_VA
+    import search_config as cfg
+    cities = list(cfg.VA_ALL) + list(cfg.NC_ALL) if nc else list(cfg.JURISDICTIONS)
     rows = []
     for city in cities:
-        raw = lw.fetch_city(city, days_on=0)
-        for L in raw:
-            e = lw.extract(L)
-            if "land" in e["type"] and e["lat"] and e["acres"] and \
-               lw.MIN_ACRES <= e["acres"] <= lw.MAX_ACRES:
-                rows.append(e)
+        # one gate, defined once, in search_config -- do not re-implement it here
+        rows.extend(lw.qualify(lw.fetch_city(city, days_on=0)))
     n_raw = len(rows)
     rows = _dedupe_listings(rows)
     if n_raw != len(rows):
         print(f"\n{n_raw - len(rows)} duplicate listing(s) collapsed on identical geocode")
-    print(f"\n{len(rows)} land listings in the {lw.MIN_ACRES:g}-{lw.MAX_ACRES:g} "
-          f"acre window across {len(cities)} jurisdiction(s) "
-          f"({'VA+NC' if nc else 'VA only, use --nc to add North Carolina'})")
+    price = f"<= ${cfg.MAX_PRICE:,}" if cfg.MAX_PRICE else "no price ceiling"
+    print(f"\n{len(rows)} land listings passing the gate: "
+          f"{', '.join(cities)} | >= {cfg.MIN_ACRES:g} ac | {price}")
     if threshold_ft > 0:
         print(f"threshold = {threshold_ft:g} ft, need >= {min_high_acres} acres "
               f"of it  [non-default: elevation IS filtering here]")
@@ -692,28 +689,93 @@ def run_test(threshold_ft, min_high_acres, limit, flood=True, nc=False):
         print("no elevation filter (threshold 0) - height is reported, not judged")
     print("terrain is REPORTED, not filtered: relief/std/tri near zero = flat "
           "(marsh, cleared field). tri discriminates better than relief.\n")
-    hdr = (f"{'src':4} {'max':>5} {'lot_ac':>6} {'relief':>6} {'tri':>5} "
-           f"{'openac':>6}  {'flood':22}  address")
-    print(hdr)
-    print("-" * len(hdr))
+    results = []
     for e in rows[:limit]:
         r = check(e["lat"], e["lon"], threshold_ft, min_high_acres, flood=flood)
         if r.get("error"):
             print(f"  ?? {r['error'][:44]:44}  {e['addr']}, {e['city']}")
             continue
-        # which state service answered, now that both are wired up
+        r["_listing"] = e
+        results.append(r)
+
+    # ---- collapse listings that sit on the SAME COUNTY PARCEL ----------------
+    # 3665 Sandpiper Rd returned 13 separate listings, every one of them
+    # reporting the parent parcel's 61.46 acres. They are campground/condo
+    # units on one tract, not thirteen 61-acre lots. The geocode dedup missed
+    # them because each unit has its own slightly different pin.
+    #
+    # Safe to merge because the key comes from the COUNTY, not the listing: if
+    # VGIN says two pins are the same parcel, they are the same land. The
+    # merged row keeps the cheapest listing's address and shows the count, so
+    # nothing disappears without being visible.
+    merged, by_parcel = [], {}
+    for r in results:
+        key = _parcel_key(r)
+        if key is None:
+            merged.append(r)
+            continue
+        if key in by_parcel:
+            prior = by_parcel[key]
+            prior["_n"] = prior.get("_n", 1) + 1
+            if (r["_listing"].get("price") or 9e12) < \
+               (prior["_listing"].get("price") or 9e12):
+                prior["_listing"] = r["_listing"]
+            continue
+        r["_n"] = 1
+        by_parcel[key] = r
+        merged.append(r)
+
+    collapsed = len(results) - len(merged)
+    if collapsed:
+        print(f"{collapsed} listing(s) collapsed onto shared county parcels\n")
+
+    key = getattr(cfg, "SORT_BY", "tri")
+    field = {"tri": "tri_ft", "relief": "relief_ft", "flood_open": "flood_open",
+             "acres": "parcel_acres", "price": None}.get(key, "tri_ft")
+    if field:
+        merged.sort(key=lambda r: r.get(field) if isinstance(r.get(field), (int, float))
+                    else -1, reverse=getattr(cfg, "SORT_DESC", True))
+    else:
+        merged.sort(key=lambda r: r["_listing"].get("price") or 0,
+                    reverse=getattr(cfg, "SORT_DESC", True))
+
+    hdr = (f"{'src':4} {'n':>2} {'listed':6} {'max':>5} {'lot_ac':>6} "
+           f"{'relief':>6} {'tri':>5} {'openac':>6} {'price':>9}  "
+           f"{'flood':22}  address")
+    print(hdr)
+    print("-" * len(hdr))
+    for r in merged:
+        e = r["_listing"]
         q = {"VGIN": "VA", "NCOneMap": "NC"}.get(r.get("source"), "??")
         w = "  !" + r["warn"] if r.get("warn") else ""
         if r.get("acres_warning"):
             w += "  !acreage"
+
         def n(k, w_=6, d=2):
             v = r.get(k)
             return f"{v:{w_}.{d}f}" if isinstance(v, (int, float)) else " " * w_
-        print(f" {q:4} {r['max_ft']:5.1f} "
+
+        cnt = r.get("_n", 1)
+        pr = e.get("price")
+        # "new" = the feed gave us a builder's house-package listing on this
+        # lot. Acreage and terrain are the real parcel; the price is not the
+        # land price and has been removed rather than shown wrong.
+        listed = e.get("listed") or e.get("type") or "?"
+        # "~" marks a row whose coordinates we geocoded ourselves because the
+        # feed had none. Median geocoder error is ~93 m against parcels
+        # 110-200 m across, so the acreage cross-check below is what makes
+        # these trustworthy -- watch for !acreage on these rows especially.
+        if e.get("geocoded"):
+            listed = "~" + listed[:5]
+        print(f" {q:4} {cnt if cnt > 1 else '':>2} {listed:6} {r['max_ft']:5.1f} "
               f"{r['parcel_acres']:6.2f} "
-              f"{n('relief_ft')} {n('tri_ft',5)} {n('flood_open',6)}  "
+              f"{n('relief_ft')} {n('tri_ft',5)} {n('flood_open',6)} "
+              f"{('$' + format(pr, ',')) if pr else ('  --' if listed == 'new' else ''):>9}  "
               f"{str(r.get('flood','')):22}  "
               f"{e['addr']}, {e['city']}{w}")
+    print(f"\nsorted by {key} "
+          f"({'desc' if getattr(cfg, 'SORT_DESC', True) else 'asc'}) - "
+          f"change SORT_BY in search_config.py")
     return 0
 
 

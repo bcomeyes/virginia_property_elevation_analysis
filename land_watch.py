@@ -46,42 +46,20 @@ STATE_FILE = HERE / "land_state.json"
 LOG_FILE   = HERE / "land_watch.log"
 ENV_FILE   = HERE / ".env"
 
-# --- what counts as a hit ----------------------------------------------------
-# Six jurisdictions straddling the state line. VA entries are independent
-# cities (Virginia Beach and Chesapeake are former counties absorbed by cities,
-# so there is no "Virginia Beach County"); NC entries are true counties.
-#
-# The word "County" is load-bearing on the NC side. Verified against the API:
-#   "Currituck County, NC"  -> 675 listings across Corolla, Moyock, Shawboro...
-#   "Currituck, NC"         ->  25 listings, town of Currituck only
-# Dropping "County" silently narrows to the town of the same name.
-CITIES_VA   = ["Chesapeake, VA", "Virginia Beach, VA", "Suffolk, VA"]
-CITIES_NC   = ["Currituck County, NC", "Camden County, NC", "Gates County, NC"]
+# --- what counts as a hit -----------------------------------------------------
+# All of this now lives in search_config.py. Nothing search-related is defined
+# here any more: constants in this file are exactly how the 8-acre minimum sat
+# for months contradicting what Matt actually wanted, with nothing forcing it
+# to surface.
+import search_config as cfg
 
-# North Carolina is OFF by default -- pass --nc to include it.
-#
-# Not a data problem. NC land is dramatically cheaper for the same commute:
-# 54 ac in Barco at $675k against 45.8 ac on Holland Rd at $3.1M. It stays
-# wired up and one flag away so that comparison can be pulled up on demand,
-# rather than being decided by omission. Currituck also drags in ~70 Corolla
-# and Carova beach lots with no acreage listed -- barrier island, reachable
-# from the mainland only by driving south through Dare County and back up the
-# beach. Another reason the default is off.
-CITIES      = list(CITIES_VA)
-MIN_ACRES   = 8.0
-MAX_ACRES   = 60.0
-# RETIRED: high-ground pocket matching.
-# This used to keep only listings within 500 m of a >=20 ft pocket from
-# output/regions_20ft.csv. Two reasons it is gone:
-#   1. That CSV is wrong -- notebook 01 discards ground above 50 ft as artifact,
-#      which deleted the real 75 ft terrain in western Suffolk.
-#   2. More fundamentally, elevation turned out to be the wrong criterion. The
-#      highest lots we measured (Holland Rd, 74.8 ft) are the flattest, and the
-#      Knotts Island calibration lot is 6.9 ft with a buildable Zone X corner.
-# Filtering on height hid good lots and promoted bad ones. Terrain and flood
-# zone are now measured per parcel in parcel_elevation.py and RANKED, not gated.
-# The only hard filters left here are facts: it is land, and it is in the
-# acreage window.
+CITIES      = cfg.JURISDICTIONS
+MIN_ACRES   = cfg.MIN_ACRES
+MAX_PRICE   = cfg.MAX_PRICE
+
+# kept so older calls to --nc still resolve
+CITIES_VA   = cfg.VA_ALL
+CITIES_NC   = cfg.NC_ALL
 
 # --- API ---------------------------------------------------------------------
 HOST = "us-real-estate-listings.p.rapidapi.com"
@@ -167,15 +145,113 @@ def fetch_city(city, days_on, tries=3):
     return out
 
 
+# --- geocoding fallback ------------------------------------------------------
+# realtor.com does not geocode new subdivisions or new builds: every Blackwater
+# Rd lot we want arrives with (None, None), while the old resale houses on the
+# same road have coordinates. qualify() drops anything without a pin, so the
+# lots Matt most wants were invisible for a reason that has nothing to do with
+# the land.
+#
+# VGIN cannot help -- its statewide parcel layer is geometry and ids only
+# (VGIN_QPID, FIPS, LOCALITY, PARCELID), no address field at all.
+#
+# Measured against three Blackwater addresses whose coordinates we already knew:
+#     census      median error  94 m, 0 failures
+#     nominatim   median error  93 m, 0 failures
+#     photon      median error 977 m  -- pinned the street, not the address
+# Census and Nominatim agreed with each other to within a few metres on every
+# ungeocoded target, which is decent evidence both are right.
+#
+# 93 m is NOT comfortable when a parcel is 110-200 m across. That slop is only
+# acceptable because parcel_elevation.check() cross-checks the measured polygon
+# acreage against the listing's stated acreage and warns on a mismatch. A
+# geocoded point that lands on the neighbour's lot shows up as an acreage
+# disagreement rather than as quietly wrong terrain.
+
+_GEOCODE_CACHE = {}
+_GEOCODE_UA = "land-search/1.0 (personal property research)"
+
+
+def _geo_census(addr):
+    url = ("https://geocoding.geo.census.gov/geocoder/locations/onelineaddress"
+           f"?address={urllib.parse.quote(addr)}"
+           "&benchmark=Public_AR_Current&format=json")
+    req = urllib.request.Request(url, headers={"User-Agent": _GEOCODE_UA})
+    with urllib.request.urlopen(req, timeout=25) as r:
+        js = json.loads(r.read().decode())
+    m = js["result"]["addressMatches"]
+    if not m:
+        return None
+    c = m[0]["coordinates"]
+    return c["y"], c["x"]
+
+
+def _geo_nominatim(addr):
+    url = ("https://nominatim.openstreetmap.org/search?format=json&limit=1"
+           f"&q={urllib.parse.quote(addr)}")
+    req = urllib.request.Request(url, headers={"User-Agent": _GEOCODE_UA})
+    with urllib.request.urlopen(req, timeout=25) as r:
+        js = json.loads(r.read().decode())
+    if not js:
+        return None
+    return float(js[0]["lat"]), float(js[0]["lon"])
+
+
+def geocode(addr, city, state, zipcode=None):
+    """(lat, lon) for a listing the feed did not geocode, or (None, None).
+
+    Census first, Nominatim second -- they scored the same and either is fine,
+    but hitting one service by default halves the load on both. Cached in
+    memory so a repeated address inside one run costs nothing.
+    """
+    if not addr or not city:
+        return None, None
+    full = f"{addr}, {city}, {state}" + (f" {zipcode}" if zipcode else "")
+    if full in _GEOCODE_CACHE:
+        return _GEOCODE_CACHE[full]
+
+    for fn, pause in ((_geo_census, 0.4), (_geo_nominatim, 1.2)):
+        try:
+            got = fn(full)
+        except Exception:
+            got = None
+        time.sleep(pause)          # Nominatim asks for <= 1 request/second
+        if got:
+            _GEOCODE_CACHE[full] = got
+            return got
+    _GEOCODE_CACHE[full] = (None, None)
+    return None, None
+
+
 def extract(listing):
     d   = listing.get("description") or {}
     loc = (listing.get("location") or {}).get("address") or {}
     c   = loc.get("coordinate") or {}
+    flags = listing.get("flags") or {}
+
+    # realtor.com carries ONE record per address, and where a builder has
+    # listed a house-to-be-built on a lot, that is the record we get -- typed
+    # single_family, priced as a package. 6664 Blackwater is "land, $325,000"
+    # in the MLS and "single_family, $954,409" here, same 9.71 acres, same
+    # parcel. The land is real and for sale; the house does not exist.
+    #
+    # So we let these through, and we DELETE THE PRICE. The package figure is
+    # wrong by hundreds of thousands for our purposes, and a wrong number is
+    # more dangerous than a blank one -- it would be gated on, sorted on, and
+    # believed. Terrain, flood and acreage are unaffected: those come from the
+    # county parcel, not from the listing.
+    new_construction = bool(flags.get("is_new_construction"))
+    price = listing.get("list_price")
+    if new_construction:
+        price = None
+
     return dict(
         pid=listing.get("property_id"),
         type=(d.get("type") or "").lower(),
+        listed="new" if new_construction else (d.get("type") or "").lower(),
+        new_construction=new_construction,
         acres=(d.get("lot_sqft") or 0) / ACRE_SQFT,
-        price=listing.get("list_price"),
+        price=price,
         lat=c.get("lat"), lon=c.get("lon"),
         addr=loc.get("line"), city=loc.get("city"),
         zip=loc.get("postal_code"),
@@ -183,22 +259,46 @@ def extract(listing):
     )
 
 
-def qualify(listings, pockets=None):
-    """Keep land in the acreage window. Nothing else is filtered here.
+def _state_of(e):
+    """VA unless the listing's city is one of the NC jurisdictions."""
+    city = (e.get("city") or "").lower()
+    for j in CITIES_NC:
+        if city and city.split(",")[0].strip() in j.lower():
+            return "NC"
+    return "NC" if (e.get("zip") or "").startswith("27") else "VA"
 
-    `pockets` is accepted and ignored, so older callers keep working. Terrain
-    and flood zone are measured per parcel downstream by parcel_elevation.py
-    and used for RANKING -- a lot never disappears before Matt has seen it.
+
+def qualify(listings, pockets=None):
+    """Apply the gate from search_config: land, acreage floor, price ceiling.
+
+    These are the ONLY things allowed to remove a listing before Matt sees it,
+    and each is a fact rather than a judgement. Terrain and flood zone are
+    measured per parcel downstream and shown as columns -- never used to hide
+    a lot. Inventory is thin enough that one hidden lot matters.
+
+    `pockets` is accepted and ignored so older callers keep working.
     """
     hits = []
     for L in listings:
         e = extract(L)
-        if "land" not in (e["type"] or ""):
+        # plain land, OR a lot carrying a proposed build (see extract())
+        if "land" not in (e["type"] or "") and not e["new_construction"]:
             continue
         if e["lat"] is None or e["lon"] is None:
+            # not geocoded by the feed -- look it up ourselves. See geocode().
+            e["lat"], e["lon"] = geocode(e["addr"], e["city"], _state_of(e),
+                                         e.get("zip"))
+            e["geocoded"] = e["lat"] is not None
+            if e["lat"] is None:
+                continue
+        # acreage: unknown (0) passes. Land listings often omit lot_sqft, and
+        # dropping them would lose real parcels. There is no upper bound --
+        # MAX_PRICE already handles affordability.
+        if e["acres"] and e["acres"] < MIN_ACRES:
             continue
-        # acreage: allow unknown (0) through - land often omits lot_sqft
-        if e["acres"] and not (MIN_ACRES <= e["acres"] <= MAX_ACRES):
+        # new-construction rows have no usable price, so the ceiling cannot
+        # judge them. They come through and Matt looks the lot price up.
+        if MAX_PRICE and e["price"] and e["price"] > MAX_PRICE:
             continue
         hits.append(e)
     return hits
@@ -236,19 +336,21 @@ def notify(title, body):
 
 def fmt(h):
     price = f"${h['price']:,}" if h.get("price") else "price n/a"
+    if h.get("new_construction"):
+        price = "LOT PRICE UNKNOWN (listed as new construction)"
     ac    = f"{h['acres']:.1f}ac" if h.get("acres") else "acreage n/a"
     return f"{h['addr']}, {h['city']} - {price}, {ac}\n  {h['href']}"
 
 
 def run(days_on, label):
-    log(f"{label}: {len(CITIES)} jurisdiction(s) "
-        f"({'VA+NC' if len(CITIES) > 3 else 'VA only'}), "
+    price = f"<= ${MAX_PRICE:,}" if MAX_PRICE else "no ceiling"
+    log(f"{label}: {', '.join(CITIES)} | >= {MIN_ACRES:g} ac | {price} | "
         f"days_on={days_on or 'all'}")
     all_hits = []
     for city in CITIES:
         raw = fetch_city(city, days_on)
         h = qualify(raw)
-        log(f"  {city:24} {len(raw):4d} listings -> {len(h)} land in window")
+        log(f"  {city:24} {len(raw):4d} listings -> {len(h)} pass the gate")
         all_hits.extend(h)
         time.sleep(1.0)
     return all_hits
@@ -335,7 +437,7 @@ if __name__ == "__main__":
                         "(off by default; cheaper land, different state)")
     a = p.parse_args()
     if a.nc:
-        CITIES = CITIES_VA + CITIES_NC
+        CITIES = list(CITIES_VA) + list(CITIES_NC)
     if a.baseline: sys.exit(baseline())
     if a.install:  sys.exit(install())
     if a.now:      sys.exit(check(days_on=DAYS_ON_NOW))

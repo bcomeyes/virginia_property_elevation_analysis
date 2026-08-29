@@ -480,7 +480,9 @@ def terrain_metrics(ft, cell_m):
     cell_ft = cell_m * M_TO_FT
     gy, gx = np.gradient(ft, cell_ft)
     grad = np.sqrt(gx ** 2 + gy ** 2)
-    out["slope_deg"] = round(float(np.degrees(np.arctan(np.nanmean(grad)))), 2)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)   # all-NaN tiny parcels
+        out["slope_deg"] = round(float(np.degrees(np.arctan(np.nanmean(grad)))), 2)
 
     # TRI: mean |centre - neighbour| over the 8 shifts. np.roll wraps at the
     # edges, so blank the wrapped row/column before differencing.
@@ -662,56 +664,45 @@ def _dedupe_listings(rows):
     return out
 
 
-def run_test(threshold_ft, min_high_acres, limit, flood=True, nc=False):
-    """End-to-end against today's real land listings (needs land_watch.py)."""
-    try:
-        import land_watch as lw
-    except ImportError:
-        print("land_watch.py not found next to this script - needed for --test")
-        return 1
-    import search_config as cfg
-    cities = list(cfg.VA_ALL) + list(cfg.NC_ALL) if nc else list(cfg.JURISDICTIONS)
-    rows = []
-    for city in cities:
-        # one gate, defined once, in search_config -- do not re-implement it here
-        rows.extend(lw.qualify(lw.fetch_city(city, days_on=0)))
+def measure_listings(rows, threshold_ft=DEFAULT_THRESHOLD_FT,
+                     min_high_acres=DEFAULT_MIN_HIGH_ACRES,
+                     flood=True, limit=None, verbose=True):
+    """Listings in -> measured parcels out. THE single measurement path.
+
+    Deduplicates, looks up each parcel, measures terrain and flood, then
+    collapses listings that share a county parcel id.
+
+    Exists because find_land.py and --test each grew their own copy of this and
+    drifted: find_land still gated on 8 ft of elevation and still called
+    lw.MAX_ACRES, deleted hours ago. One function, both callers.
+
+    Returns a list of stats dicts, each with "_listing" attached.
+    """
     n_raw = len(rows)
     rows = _dedupe_listings(rows)
-    if n_raw != len(rows):
-        print(f"\n{n_raw - len(rows)} duplicate listing(s) collapsed on identical geocode")
-    price = f"<= ${cfg.MAX_PRICE:,}" if cfg.MAX_PRICE else "no price ceiling"
-    print(f"\n{len(rows)} land listings passing the gate: "
-          f"{', '.join(cities)} | >= {cfg.MIN_ACRES:g} ac | {price}")
-    if threshold_ft > 0:
-        print(f"threshold = {threshold_ft:g} ft, need >= {min_high_acres} acres "
-              f"of it  [non-default: elevation IS filtering here]")
-    else:
-        print("no elevation filter (threshold 0) - height is reported, not judged")
-    print("terrain is REPORTED, not filtered: relief/std/tri near zero = flat "
-          "(marsh, cleared field). tri discriminates better than relief.\n")
+    if verbose and n_raw != len(rows):
+        print(f"{n_raw - len(rows)} duplicate listing(s) collapsed on identical geocode")
+
     results = []
-    for e in rows[:limit]:
+    for e in (rows[:limit] if limit else rows):
         r = check(e["lat"], e["lon"], threshold_ft, min_high_acres, flood=flood)
         if r.get("error"):
-            print(f"  ?? {r['error'][:44]:44}  {e['addr']}, {e['city']}")
+            if verbose:
+                print(f"  ?? {r['error'][:44]:44}  {e['addr']}, {e['city']}")
             continue
         r["_listing"] = e
         results.append(r)
 
-    # ---- collapse listings that sit on the SAME COUNTY PARCEL ----------------
-    # 3665 Sandpiper Rd returned 13 separate listings, every one of them
-    # reporting the parent parcel's 61.46 acres. They are campground/condo
-    # units on one tract, not thirteen 61-acre lots. The geocode dedup missed
-    # them because each unit has its own slightly different pin.
-    #
-    # Safe to merge because the key comes from the COUNTY, not the listing: if
-    # VGIN says two pins are the same parcel, they are the same land. The
-    # merged row keeps the cheapest listing's address and shows the count, so
-    # nothing disappears without being visible.
+    # Collapse listings sitting on the SAME COUNTY PARCEL. 3665 Sandpiper Rd
+    # returned 13 listings all reporting the parent tract's 61.46 acres. Safe
+    # because the key comes from the county, not the listing: if VGIN says two
+    # pins are one parcel, they are one parcel. Cheapest listing's details are
+    # kept and the count is shown, so nothing vanishes silently.
     merged, by_parcel = [], {}
     for r in results:
         key = _parcel_key(r)
         if key is None:
+            r["_n"] = 1
             merged.append(r)
             continue
         if key in by_parcel:
@@ -725,19 +716,43 @@ def run_test(threshold_ft, min_high_acres, limit, flood=True, nc=False):
         by_parcel[key] = r
         merged.append(r)
 
-    collapsed = len(results) - len(merged)
-    if collapsed:
-        print(f"{collapsed} listing(s) collapsed onto shared county parcels\n")
+    if verbose and len(results) != len(merged):
+        print(f"{len(results) - len(merged)} listing(s) collapsed onto "
+              f"shared county parcels\n")
+    return merged
 
-    key = getattr(cfg, "SORT_BY", "tri")
+
+def sort_results(merged, key=None, desc=None):
+    """Sort measured parcels by a config-named column."""
+    import search_config as cfg
+    key = key if key is not None else getattr(cfg, "SORT_BY", "tri")
+    desc = desc if desc is not None else getattr(cfg, "SORT_DESC", True)
     field = {"tri": "tri_ft", "relief": "relief_ft", "flood_open": "flood_open",
              "acres": "parcel_acres", "price": None}.get(key, "tri_ft")
     if field:
-        merged.sort(key=lambda r: r.get(field) if isinstance(r.get(field), (int, float))
-                    else -1, reverse=getattr(cfg, "SORT_DESC", True))
+        merged.sort(key=lambda r: r.get(field)
+                    if isinstance(r.get(field), (int, float)) else -1, reverse=desc)
     else:
-        merged.sort(key=lambda r: r["_listing"].get("price") or 0,
-                    reverse=getattr(cfg, "SORT_DESC", True))
+        merged.sort(key=lambda r: r["_listing"].get("price") or 0, reverse=desc)
+    return key, desc
+
+
+def run_test(threshold_ft, min_high_acres, limit, flood=True, nc=False):
+    """End-to-end against today's real land listings (needs land_watch.py)."""
+    try:
+        import land_watch as lw
+    except ImportError:
+        print("land_watch.py not found next to this script - needed for --test")
+        return 1
+    import search_config as cfg
+    cities = list(cfg.VA_ALL) + list(cfg.NC_ALL) if nc else list(cfg.JURISDICTIONS)
+    rows = []
+    for city in cities:
+        # one gate, defined once, in search_config -- do not re-implement it here
+        rows.extend(lw.qualify(lw.fetch_city(city, days_on=0)))
+    merged = measure_listings(rows, threshold_ft, min_high_acres,
+                              flood=flood, limit=limit)
+    key, _ = sort_results(merged)
 
     hdr = (f"{'src':4} {'n':>2} {'listed':6} {'max':>5} {'lot_ac':>6} "
            f"{'relief':>6} {'tri':>5} {'openac':>6} {'price':>9}  "

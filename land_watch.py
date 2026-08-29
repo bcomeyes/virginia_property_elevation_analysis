@@ -168,8 +168,30 @@ def fetch_city(city, days_on, tries=3):
 # geocoded point that lands on the neighbour's lot shows up as an acreage
 # disagreement rather than as quietly wrong terrain.
 
-_GEOCODE_CACHE = {}
+# Cached to DISK, not just memory. An address's coordinates do not change, and
+# an in-memory cache dies with the process -- so every run was re-geocoding
+# everything from scratch, which is what made a sweep take minutes before it
+# printed anything at all.
+_GEOCODE_FILE = HERE / "cache" / "geocode.json"
 _GEOCODE_UA = "land-search/1.0 (personal property research)"
+
+
+def _load_geocode_cache():
+    try:
+        return json.loads(_GEOCODE_FILE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+_GEOCODE_CACHE = _load_geocode_cache()
+
+
+def _save_geocode_cache():
+    try:
+        _GEOCODE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _GEOCODE_FILE.write_text(json.dumps(_GEOCODE_CACHE, indent=1))
+    except OSError:
+        pass
 
 
 def _geo_census(addr):
@@ -177,7 +199,7 @@ def _geo_census(addr):
            f"?address={urllib.parse.quote(addr)}"
            "&benchmark=Public_AR_Current&format=json")
     req = urllib.request.Request(url, headers={"User-Agent": _GEOCODE_UA})
-    with urllib.request.urlopen(req, timeout=25) as r:
+    with urllib.request.urlopen(req, timeout=8) as r:
         js = json.loads(r.read().decode())
     m = js["result"]["addressMatches"]
     if not m:
@@ -190,7 +212,7 @@ def _geo_nominatim(addr):
     url = ("https://nominatim.openstreetmap.org/search?format=json&limit=1"
            f"&q={urllib.parse.quote(addr)}")
     req = urllib.request.Request(url, headers={"User-Agent": _GEOCODE_UA})
-    with urllib.request.urlopen(req, timeout=25) as r:
+    with urllib.request.urlopen(req, timeout=8) as r:
         js = json.loads(r.read().decode())
     if not js:
         return None
@@ -208,7 +230,8 @@ def geocode(addr, city, state, zipcode=None):
         return None, None
     full = f"{addr}, {city}, {state}" + (f" {zipcode}" if zipcode else "")
     if full in _GEOCODE_CACHE:
-        return _GEOCODE_CACHE[full]
+        got = _GEOCODE_CACHE[full]
+        return tuple(got) if got else (None, None)
 
     for fn, pause in ((_geo_census, 0.4), (_geo_nominatim, 1.2)):
         try:
@@ -217,9 +240,11 @@ def geocode(addr, city, state, zipcode=None):
             got = None
         time.sleep(pause)          # Nominatim asks for <= 1 request/second
         if got:
-            _GEOCODE_CACHE[full] = got
+            _GEOCODE_CACHE[full] = list(got)
+            _save_geocode_cache()
             return got
-    _GEOCODE_CACHE[full] = (None, None)
+    _GEOCODE_CACHE[full] = None       # remember the failure too
+    _save_geocode_cache()
     return None, None
 
 
@@ -281,25 +306,38 @@ def qualify(listings, pockets=None):
     hits = []
     for L in listings:
         e = extract(L)
+
+        # ---- free checks first. Never pay for a network lookup on a listing
+        # we were going to drop anyway. ----------------------------------
         # plain land, OR a lot carrying a proposed build (see extract())
         if "land" not in (e["type"] or "") and not e["new_construction"]:
             continue
+
+        # Acreage. A rural LAND listing genuinely may omit lot_sqft, and
+        # dropping those would lose real parcels -- so unknown still passes for
+        # plain land. But a new-construction listing with no acreage is a city
+        # infill lot every time (22nd St, Terrace Ave, 0.10-0.20 ac), and
+        # admitting them put ~80 parcels through three network calls each for
+        # land Matt would never buy. Known acreage required for those.
+        if e["acres"]:
+            if e["acres"] < MIN_ACRES:
+                continue
+        elif e["new_construction"]:
+            continue
+
+        # new-construction rows have no usable price, so the ceiling cannot
+        # judge them. They come through and Matt looks the lot price up.
+        if MAX_PRICE and e["price"] and e["price"] > MAX_PRICE:
+            continue
+
+        # ---- only now is it worth geocoding ----------------------------
         if e["lat"] is None or e["lon"] is None:
-            # not geocoded by the feed -- look it up ourselves. See geocode().
             e["lat"], e["lon"] = geocode(e["addr"], e["city"], _state_of(e),
                                          e.get("zip"))
             e["geocoded"] = e["lat"] is not None
             if e["lat"] is None:
                 continue
-        # acreage: unknown (0) passes. Land listings often omit lot_sqft, and
-        # dropping them would lose real parcels. There is no upper bound --
-        # MAX_PRICE already handles affordability.
-        if e["acres"] and e["acres"] < MIN_ACRES:
-            continue
-        # new-construction rows have no usable price, so the ceiling cannot
-        # judge them. They come through and Matt looks the lot price up.
-        if MAX_PRICE and e["price"] and e["price"] > MAX_PRICE:
-            continue
+
         hits.append(e)
     return hits
 

@@ -16,3 +16,4 @@ python-dotenv>=1.0
 # rasterstats>=0.19
 # folium>=0.15
 # openrouteservice>=2.3
+openpyxl

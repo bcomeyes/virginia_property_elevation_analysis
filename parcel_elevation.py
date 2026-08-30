@@ -31,7 +31,7 @@ from pathlib import Path
 import numpy as np
 import rasterio
 import rasterio.mask
-from shapely.geometry import shape, Point
+from shapely.geometry import shape, Point, mapping
 from shapely.ops import transform as shp_transform
 from pyproj import Transformer
 
@@ -232,6 +232,50 @@ def _normalise(attrs, source):
     return out
 
 
+# --------------------------------------------------------------------------- #
+# On-disk cache for the two slow network lookups.
+#
+# Parcel boundaries have not moved in decades and FEMA remaps on a scale of
+# years, but every sweep was re-querying both for every parcel. That is what
+# made a run take minutes: three round trips per parcel, serially, with retries
+# and rate-limit pauses. Same precompute-then-tune pattern as the DEM tiles and
+# cache/geocode.json.
+#
+# One file per parcel rather than one big JSON, so a lookup never rewrites
+# megabytes and a bad entry can be deleted by hand.
+#
+# Delete cache/parcels/ or cache/flood/ to force a refetch.
+CACHE_DIR = HERE / "cache"
+FLOOD_MAX_AGE_DAYS = 180        # FEMA does remap; parcels effectively never do
+
+
+def _cache_key(lat, lon):
+    """~1 m precision. Two listings this close are the same lookup."""
+    return f"{lat:.5f}_{lon:.5f}".replace("-", "m")
+
+
+def _cache_read(kind, key, max_age_days=None):
+    fp = CACHE_DIR / kind / f"{key}.json"
+    try:
+        obj = json.loads(fp.read_text())
+    except (OSError, ValueError):
+        return None
+    if max_age_days is not None and (time.time() - obj.get("_at", 0)) > max_age_days * 86400:
+        return None
+    return obj
+
+
+def _cache_write(kind, key, obj):
+    fp = CACHE_DIR / kind / f"{key}.json"
+    try:
+        fp.parent.mkdir(parents=True, exist_ok=True)
+        obj = dict(obj)
+        obj["_at"] = time.time()
+        fp.write_text(json.dumps(obj))
+    except OSError:
+        pass
+
+
 def get_parcel_polygon(lat, lon, verbose=False):
     """Parcel polygon containing (lat, lon), from whichever state service has it.
 
@@ -242,6 +286,13 @@ def get_parcel_polygon(lat, lon, verbose=False):
     roughly right -- a parcel just north or south of the line still resolves, and
     so does one in a county whose data is missing from its own state's service.
     """
+    key = _cache_key(lat, lon)
+    hit = _cache_read("parcels", key)
+    if hit is not None:
+        if not hit.get("geometry"):
+            return None, None            # remembered miss; do not re-ask
+        return shape(hit["geometry"]), hit.get("attrs")
+
     order = ((_query_vgin, "VGIN"), (_query_ncone, "NCOneMap"))
     if lat < STATE_LINE_LAT:
         order = order[::-1]
@@ -251,7 +302,11 @@ def get_parcel_polygon(lat, lon, verbose=False):
         if poly is not None:
             if verbose:
                 print(f"    parcel from {name}")
-            return poly, _normalise(attrs, name)
+            attrs = _normalise(attrs, name)
+            _cache_write("parcels", key,
+                         {"geometry": mapping(poly), "attrs": attrs})
+            return poly, attrs
+    _cache_write("parcels", key, {"geometry": None, "attrs": None})
     return None, None
 
 
@@ -302,7 +357,7 @@ def _short_zone(zone, subty):
     return z
 
 
-def flood_zones(poly_4326, verbose=False):
+def _flood_zones_uncached(poly_4326, verbose=False):
     """FEMA flood picture for one parcel.
 
     Returns a dict with:
@@ -390,6 +445,22 @@ def flood_zones(poly_4326, verbose=False):
 
     if bfes:
         out["flood_bfe"] = round(max(bfes), 1)
+    return out
+
+
+def flood_zones(poly_4326, verbose=False):
+    """Cached wrapper. See _flood_zones_uncached for the real work."""
+    c = poly_4326.centroid
+    key = _cache_key(c.y, c.x)
+    hit = _cache_read("flood", key, FLOOD_MAX_AGE_DAYS)
+    if hit is not None:
+        hit.pop("_at", None)
+        return hit
+
+    out = _flood_zones_uncached(poly_4326, verbose)
+    # Do not cache a transient failure as if it were an answer.
+    if out.get("flood") not in ("lookup failed",):
+        _cache_write("flood", key, out)
     return out
 
 

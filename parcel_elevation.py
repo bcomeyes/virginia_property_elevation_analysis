@@ -640,7 +640,8 @@ def sample_parcel_elevation(poly_4326, threshold_ft=DEFAULT_THRESHOLD_FT, verbos
 
 
 def check(lat, lon, threshold_ft=DEFAULT_THRESHOLD_FT,
-          min_high_acres=DEFAULT_MIN_HIGH_ACRES, verbose=False, flood=True):
+          min_high_acres=DEFAULT_MIN_HIGH_ACRES, verbose=False, flood=True,
+          listed_acres=None):
     """Full test for one coordinate.
 
     `qualifies` is NOT a verdict on the parcel. It only says the lot has at
@@ -678,14 +679,34 @@ def check(lat, lon, threshold_ft=DEFAULT_THRESHOLD_FT,
     if flood:
         stats.update(flood_zones(poly, verbose=verbose))
 
+    # What do we compare the measured polygon against?
+    #
+    # NC OneMap publishes gisacres, so on that side the county's own figure is
+    # the reference. VGIN publishes NO acreage at all -- its statewide parcel
+    # layer is geometry and ids only -- so every Virginia parcel had nothing to
+    # check against and the cross-check silently did nothing.
+    #
+    # 6664 Blackwater is why this matters: the recorded plat says Lot 11 is
+    # 423,081 SF / 9.713 ac, the listing agrees at 9.71, and we measured 12.13.
+    # 25% over, no warning. The VGIN polygon most likely swallows part of the
+    # adjacent 7.118 ac Open Space parcel.
+    #
+    # So: county figure first, listing acreage second. The listing is weaker
+    # evidence -- agents round, and lot_sqft is sometimes the parent tract --
+    # but it is far better than no check at all.
     rep = attrs.get("_acres_reported") if attrs else None
+    rep_src = "county"
+    if not rep and listed_acres:
+        rep, rep_src = float(listed_acres), "listing"
     got = stats.get("poly_acres")
     if rep and got:
         stats["acres_ratio"] = round(got / rep, 3)
+        stats["acres_ref"] = rep_src
         if not 0.85 <= stats["acres_ratio"] <= 1.15:
             stats["acres_warning"] = (
-                f"measured {got:.2f} ac vs county-reported {rep:.2f} ac "
-                f"- pin may be on the wrong parcel")
+                f"measured {got:.2f} ac vs {rep_src}-reported {rep:.2f} ac "
+                f"({stats['acres_ratio']:.2f}x) - polygon may include a "
+                f"neighbouring parcel, or the pin is on the wrong lot")
     return stats
 
 
@@ -756,7 +777,8 @@ def measure_listings(rows, threshold_ft=DEFAULT_THRESHOLD_FT,
 
     results = []
     for e in (rows[:limit] if limit else rows):
-        r = check(e["lat"], e["lon"], threshold_ft, min_high_acres, flood=flood)
+        r = check(e["lat"], e["lon"], threshold_ft, min_high_acres, flood=flood,
+                  listed_acres=e.get("acres"))
         if r.get("error"):
             if verbose:
                 print(f"  ?? {r['error'][:44]:44}  {e['addr']}, {e['city']}")

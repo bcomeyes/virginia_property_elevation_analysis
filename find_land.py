@@ -113,7 +113,7 @@ STATUSES = [
 REVIVE_PRICE_DROP = 0.90          # 10% below the rejected price
 
 COLS = (["address", "listed", "price"] + HUMAN_COLS +
-        ["acres", "parcel_acres", "flood",
+        ["acres", "parcel_acres", "canopy_pct", "flood",
          "flood_open", "flood_sfha", "relief_ft", "tri_ft", "std_ft", "max_ft",
          "min_sandbridge", "min_coinjock", "source", "n_listings",
          "geocoded", "warn", "url", "parcel_key", "rejected_at_price"])
@@ -248,6 +248,7 @@ def to_row(r):
         "price":        e.get("price"),
         "acres":        round(e["acres"], 2) if e.get("acres") else None,
         "parcel_acres": r.get("parcel_acres"),
+        "canopy_pct":   r.get("canopy_pct"),
         "flood":        r.get("flood"),
         "flood_open":   r.get("flood_open"),
         "flood_sfha":   r.get("flood_sfha"),
@@ -267,9 +268,9 @@ def to_row(r):
 
 
 def print_table(merged, key):
-    hdr = (f"{'src':4} {'status':14} {'n':>2} {'listed':7} {'lot_ac':>6} {'relief':>6} "
-           f"{'tri':>5} {'openac':>6} {'SB':>4} {'CJ':>4} {'price':>10}  "
-           f"{'flood':20}  address")
+    hdr = (f"{'src':4} {'status':14} {'n':>2} {'listed':7} {'lot_ac':>6} "
+           f"{'tree%':>6} {'relief':>6} {'tri':>5} {'openac':>6} "
+           f"{'SB':>4} {'CJ':>4} {'price':>10}  {'flood':18}  address")
     print("\n" + hdr)
     print("-" * len(hdr))
     for r in merged:
@@ -299,17 +300,20 @@ def print_table(merged, key):
             warn += "  !acreage"
         print(f" {src:4} {(r.get('_status') or ''):14} "
               f"{cnt if cnt > 1 else '':>2} {listed:7} "
-              f"{n('parcel_acres')} {n('relief_ft')} {n('tri_ft',5)} "
+              f"{n('parcel_acres')} {n('canopy_pct',6,0)} "
+              f"{n('relief_ft')} {n('tri_ft',5)} "
               f"{n('flood_open',6)} "
               f"{sb if sb is not None else '  -':>4} "
               f"{cj if cj is not None else '  -':>4} "
               f"{(('$' + format(int(pr), ',') + ('*' if verified else '')) if pr else '   --'):>10}  "
-              f"{str(r.get('flood',''))[:20]:20}  "
+              f"{str(r.get('flood',''))[:18]:18}  "
               f"{e.get('addr','')}, {e.get('city','')}{warn}")
     print(f"\n{len(merged)} parcels, sorted by {key}. "
           f"'~' = we geocoded it, '--' price = new construction (lot "
           f"price not in the feed; type it into price_verified). "
-          f"'*' = verified by hand. SB/CJ = minutes to Sandbridge / Coinjock.")
+          f"'*' = verified by hand. SB/CJ = minutes to Sandbridge / Coinjock.\n"
+          f"tree% = NLCD tree canopy cover. On flat ground it is the ONLY "
+          f"source of privacy -- landform screens nothing under ~8 ft relief.")
 
 
 def write_csv(merged):
@@ -378,6 +382,7 @@ def write_xlsx(merged):
     dv.add(f"{scol}2:{scol}{max(ws.max_row, 500)}")
 
     widths = {"address": 42, "notes": 46, "flood": 24, "url": 12,
+              "canopy_pct": 10,
               "price_verified": 14,
               "parcel_key": 26, "status": 15}
     for i, name in enumerate(COLS, start=1):

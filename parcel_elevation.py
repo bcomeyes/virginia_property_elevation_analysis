@@ -83,6 +83,26 @@ NFHL = ("https://hazards.fema.gov/arcgis/rest/services/public/"
 # treated as open ground for the purposes of the ranking column.
 SFHA_ZONES = {"A", "AE", "AH", "AO", "AR", "A99", "V", "VE"}
 
+# USFS/NLCD Tree Canopy Cover via MRLC's GeoServer: percent tree canopy per
+# 30 m pixel. Coarse -- a 4 acre lot is ~18 pixels -- but it is the thing we
+# actually want to know, and it validated cleanly against parcels Matt labelled
+# from imagery: 6584 Blackwater (he says completely wooded) 91.5%, the Sandpiper
+# campground 6.4%, his cousin's mixed lot 58.1%.
+#
+# Why this matters more than it looks: on flat coastal parcels the landform
+# screens nothing -- 6664 Blackwater has 2.9 ft of relief across 12 acres -- so
+# trees are the ONLY source of privacy. Bare-earth lidar cannot see them.
+#
+# NAIP NDVI at 0.3 m was also tested and deliberately NOT used. It measures
+# greenness, not trees: it scored the cousin's marsh-heavy lot at 93% against
+# canopy's 58%, because marsh grass is green. We care about woods, not grass.
+#
+# The layer name changes with each release, so it is discovered rather than
+# hardcoded. 2021 is the current vintage, meaning very recent clearing will
+# not show.
+MRLC_WMS = "https://www.mrlc.gov/geoserver/mrlc_display/wms"
+_TCC_LAYER = None
+
 _to_utm = Transformer.from_crs(4326, WORKING_EPSG, always_xy=True).transform
 
 
@@ -448,6 +468,78 @@ def _flood_zones_uncached(poly_4326, verbose=False):
     return out
 
 
+def _tcc_layer(verbose=False):
+    """Current tree-canopy layer name from GetCapabilities, cached per run."""
+    global _TCC_LAYER
+    if _TCC_LAYER is not None:
+        return _TCC_LAYER or None
+    try:
+        full = MRLC_WMS + "?" + urllib.parse.urlencode(
+            {"service": "WMS", "version": "1.3.0", "request": "GetCapabilities"})
+        with urllib.request.urlopen(full, timeout=60) as r:
+            xml = r.read().decode()
+    except Exception as e:
+        if verbose:
+            print(f"    MRLC capabilities failed: {type(e).__name__}")
+        _TCC_LAYER = ""
+        return None
+    import re
+    names = re.findall(r"<Name>([^<]+)</Name>", xml)
+    cands = [n for n in names
+             if ("tcc" in n.lower() or "canopy" in n.lower())
+             and "change" not in n.lower()]
+    cands.sort(key=lambda n: (("conus" in n.lower() or "l48" in n.lower()), n),
+               reverse=True)
+    _TCC_LAYER = cands[0] if cands else ""
+    return _TCC_LAYER or None
+
+
+def canopy_pct(poly_4326, verbose=False):
+    """Mean percent tree canopy over the parcel. Cached to disk.
+
+    Returns {"canopy_pct": float} or {} if unavailable. Never raises -- a
+    missing canopy figure should not stop a parcel being measured.
+    """
+    c = poly_4326.centroid
+    key = _cache_key(c.y, c.x)
+    hit = _cache_read("canopy", key, 400)      # NLCD updates annually
+    if hit is not None:
+        hit.pop("_at", None)
+        return hit
+
+    layer = _tcc_layer(verbose)
+    if not layer:
+        return {}
+
+    minx, miny, maxx, maxy = poly_4326.bounds
+    # a small parcel still needs enough pixels to average sensibly
+    px = 256
+    full = MRLC_WMS + "?" + urllib.parse.urlencode({
+        "service": "WMS", "version": "1.1.1", "request": "GetMap",
+        "layers": layer, "styles": "", "srs": "EPSG:4326",
+        "bbox": f"{minx},{miny},{maxx},{maxy}",
+        "width": px, "height": px, "format": "image/geotiff",
+    })
+    try:
+        with urllib.request.urlopen(full, timeout=90) as r:
+            img = r.read()
+        import rasterio
+        from rasterio.io import MemoryFile
+        with MemoryFile(img) as mf, mf.open() as ds:
+            a = ds.read(1).astype("float32")
+        a[a > 100] = np.nan
+        if not np.isfinite(a).any():
+            return {}
+        out = {"canopy_pct": round(float(np.nanmean(a)), 1)}
+    except Exception as e:
+        if verbose:
+            print(f"    canopy lookup failed: {type(e).__name__}: {str(e)[:60]}")
+        return {}
+
+    _cache_write("canopy", key, out)
+    return out
+
+
 def flood_zones(poly_4326, verbose=False):
     """Cached wrapper. See _flood_zones_uncached for the real work."""
     c = poly_4326.centroid
@@ -678,6 +770,7 @@ def check(lat, lon, threshold_ft=DEFAULT_THRESHOLD_FT,
     # off for bulk runs where only terrain matters.
     if flood:
         stats.update(flood_zones(poly, verbose=verbose))
+        stats.update(canopy_pct(poly, verbose=verbose))
 
     # What do we compare the measured polygon against?
     #

@@ -101,6 +101,36 @@ SFHA_ZONES = {"A", "AE", "AH", "AO", "AR", "A99", "V", "VE"}
 # hardcoded. 2021 is the current vintage, meaning very recent clearing will
 # not show.
 MRLC_WMS = "https://www.mrlc.gov/geoserver/mrlc_display/wms"
+
+# USDA SSURGO soil survey via Soil Data Access. Septic viability is a harder
+# constraint than anything else measured here -- a lot that fails perc is not a
+# lot -- and the same properties decide whether a gravel drive needs geotextile
+# fabric under the base course.
+#
+# Validated against the cousin's lot, which Matt has walked: Altavista
+# (moderately well drained, not hydric) on the dry corner where the house sits,
+# Currituck mucky peat (very poorly drained) on the marsh, Roanoke between.
+# 70% hydric against FEMA's 74% Zone AE -- two independent datasets agreeing
+# within four points.
+#
+# It also found what nothing else did: 6664 Blackwater, the 12-acre Zone X lot
+# that looked best in the search on every other measure, has ZERO acres of
+# moderately-well-drained soil and is 67% hydric.
+#
+# LIMITS: mapped at ~1:12,000, smallest polygon a few acres, so a 4-acre lot may
+# be one polygon. The Coastal Plain is stacked Pleistocene shorelines, so real
+# variation is finer than the map can draw. Triage, not a perc test.
+#
+# The SDA spatial query returns HTTP 400; the WFS works. WFS 1.1.0 returns
+# EPSG:4326 as LAT,LON -- the axis order changed from 1.0.0 -- so coordinates
+# arrive swapped and must be flipped.
+SDA_POST = "https://SDMDataAccess.sc.egov.usda.gov/Tabular/post.rest"
+SDA_WFS  = "https://SDMDataAccess.sc.egov.usda.gov/Spatial/SDMWGS84Geographic.wfs"
+
+# Conventional septic wants the top of this set. Below it: engineered system,
+# or a lot that will not permit at all.
+GOOD_DRAINAGE = {"Excessively drained", "Somewhat excessively drained",
+                 "Well drained", "Moderately well drained"}
 _TCC_LAYER = None
 
 _to_utm = Transformer.from_crs(4326, WORKING_EPSG, always_xy=True).transform
@@ -540,6 +570,147 @@ def canopy_pct(poly_4326, verbose=False):
     return out
 
 
+def _sda(sql, timeout=90):
+    body = json.dumps({"query": sql, "format": "JSON+COLUMNNAME"}).encode()
+    req = urllib.request.Request(SDA_POST, data=body,
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode()).get("Table") or []
+
+
+def _sda_num(v):
+    """SDA returns every value as a string, including numerics."""
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _soil_polygons(poly_4326, timeout=120):
+    """Soil map unit polygons over the parcel bbox, axis order corrected."""
+    minx, miny, maxx, maxy = poly_4326.bounds
+    flt = (f"<Filter><BBOX><PropertyName>Geometry</PropertyName>"
+           f"<Box srsName='EPSG:4326'><coordinates>"
+           f"{minx},{miny} {maxx},{maxy}</coordinates></Box></BBOX></Filter>")
+    url = SDA_WFS + "?" + urllib.parse.urlencode({
+        "SERVICE": "WFS", "VERSION": "1.1.0", "REQUEST": "GetFeature",
+        "TYPENAME": "MapunitPoly", "FILTER": flt,
+        "SRSNAME": "EPSG:4326", "OUTPUTFORMAT": "GML2"})
+    with urllib.request.urlopen(url, timeout=timeout) as r:
+        gml = r.read()
+
+    import tempfile
+    import geopandas as gpd
+    from shapely.ops import transform as _tf
+    with tempfile.NamedTemporaryFile(suffix=".gml", delete=False) as fh:
+        fh.write(gml)
+        path = fh.name
+    gdf = gpd.read_file(path)
+    key = next((c for c in gdf.columns if c.lower() == "mukey"), None)
+    out = []
+    for _, row in gdf.iterrows():
+        g = row.geometry
+        if g is None or g.is_empty:
+            continue
+        # In the continental US longitude is NEGATIVE and latitude POSITIVE, so
+        # x positive with y negative means the pair is swapped. A magnitude test
+        # fails here: y is -75.996 and 75.996 < 90.
+        if g.bounds[0] > 0 and g.bounds[1] < 0:
+            g = _tf(lambda x, y, z=None: (y, x), g)
+        out.append((str(row[key]) if key else "?", g))
+    return out
+
+
+def soil_summary(poly_4326, verbose=False):
+    """Four soil numbers per parcel. Cached to disk.
+
+      drained_ac   acres of moderately-well-drained or better. The septic
+                   number -- 6664 Blackwater returns 0.00 on 12 acres.
+      hydric_pct   percent on wetland-indicator soil.
+      wt_depth_in  shallowest annual water table, inches. Drives both septic
+                   and whether the driveway needs fabric under the stone.
+      soils        dominant soil names, e.g. "Tomotley / Augusta".
+
+    The full breakdown -- every component with its own drainage class, Ksat and
+    clay -- is nine lines for one parcel and does not fit a spreadsheet row.
+    Run soil.py on a single parcel for that.
+
+    Never raises: a missing soil figure must not stop a parcel being measured.
+    """
+    c = poly_4326.centroid
+    key = _cache_key(c.y, c.x)
+    hit = _cache_read("soil", key)          # soil surveys change very rarely
+    if hit is not None:
+        hit.pop("_at", None)
+        return hit
+
+    try:
+        polys = _soil_polygons(poly_4326)
+    except Exception as e:
+        if verbose:
+            print(f"    soil polygons failed: {type(e).__name__}: {str(e)[:60]}")
+        return {}
+    if not polys:
+        return {}
+
+    shares = {}
+    for mukey, g in polys:
+        try:
+            inter = poly_4326.intersection(g)
+        except Exception:
+            continue
+        if inter.is_empty:
+            continue
+        shares[mukey] = shares.get(mukey, 0.0) + (
+            shp_transform(_to_utm, inter).area / ACRE_M2)
+    if not shares:
+        return {}
+
+    keylist = ",".join(f"'{k}'" for k in shares)
+    try:
+        rows = _sda(f"""
+            SELECT c.mukey, c.compname, c.comppct_r, c.drainagecl,
+                   c.hydricrating, m.wtdepannmin
+            FROM component c
+            LEFT JOIN muaggatt m ON m.mukey = c.mukey
+            WHERE c.mukey IN ({keylist})
+            ORDER BY c.mukey, c.comppct_r DESC
+        """)
+    except Exception as e:
+        if verbose:
+            print(f"    soil components failed: {type(e).__name__}")
+        return {}
+    if len(rows) <= 1:
+        return {}
+
+    dominant = {}
+    for r in rows[1:]:
+        mukey, name, pct, drain, hyd, wt = (list(r) + [None] * 6)[:6]
+        mukey = str(mukey)
+        if mukey not in dominant:       # ordered by comppct_r desc
+            dominant[mukey] = {"name": name, "drain": drain, "hydric": hyd,
+                               "wt": _sda_num(wt)}
+
+    total = sum(shares.values()) or 1.0
+    drained = sum(ac for k, ac in shares.items()
+                  if dominant.get(k, {}).get("drain") in GOOD_DRAINAGE)
+    hydric = sum(ac for k, ac in shares.items()
+                 if dominant.get(k, {}).get("hydric") == "Yes")
+    wts = [dominant[k]["wt"] for k in shares
+           if dominant.get(k, {}).get("wt") is not None]
+    names = [str(dominant.get(k, {}).get("name") or k)
+             for k, _ in sorted(shares.items(), key=lambda kv: -kv[1])[:3]]
+
+    out = {"drained_ac": round(drained, 2),
+           "hydric_pct": round(hydric / total * 100, 0),
+           "soils": " / ".join(names)}
+    if wts:
+        out["wt_depth_in"] = round(min(wts), 0)
+
+    _cache_write("soil", key, out)
+    return out
+
+
 def flood_zones(poly_4326, verbose=False):
     """Cached wrapper. See _flood_zones_uncached for the real work."""
     c = poly_4326.centroid
@@ -771,6 +942,7 @@ def check(lat, lon, threshold_ft=DEFAULT_THRESHOLD_FT,
     if flood:
         stats.update(flood_zones(poly, verbose=verbose))
         stats.update(canopy_pct(poly, verbose=verbose))
+        stats.update(soil_summary(poly, verbose=verbose))
 
     # What do we compare the measured polygon against?
     #

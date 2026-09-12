@@ -113,7 +113,8 @@ STATUSES = [
 REVIVE_PRICE_DROP = 0.90          # 10% below the rejected price
 
 COLS = (["address", "listed", "price"] + HUMAN_COLS +
-        ["acres", "parcel_acres", "canopy_pct", "flood",
+        ["acres", "parcel_acres", "canopy_pct",
+          "drained_ac", "hydric_pct", "wt_depth_in", "soils", "flood",
          "flood_open", "flood_sfha", "relief_ft", "tri_ft", "std_ft", "max_ft",
          "min_sandbridge", "min_coinjock", "source", "n_listings",
          "geocoded", "warn", "url", "parcel_key", "rejected_at_price"])
@@ -249,6 +250,14 @@ def to_row(r):
         "acres":        round(e["acres"], 2) if e.get("acres") else None,
         "parcel_acres": r.get("parcel_acres"),
         "canopy_pct":   r.get("canopy_pct"),
+        # soil: drained_ac is the septic number, hydric_pct the wetland
+        # indicator, wt_depth_in drives both septic and whether the driveway
+        # needs fabric. Full per-soil detail is nine lines per parcel -- run
+        # soil.py on a single lot for that.
+        "drained_ac":   r.get("drained_ac"),
+        "hydric_pct":   r.get("hydric_pct"),
+        "wt_depth_in":  r.get("wt_depth_in"),
+        "soils":        r.get("soils"),
         "flood":        r.get("flood"),
         "flood_open":   r.get("flood_open"),
         "flood_sfha":   r.get("flood_sfha"),
@@ -269,7 +278,8 @@ def to_row(r):
 
 def print_table(merged, key):
     hdr = (f"{'src':4} {'status':14} {'n':>2} {'listed':7} {'lot_ac':>6} "
-           f"{'tree%':>6} {'relief':>6} {'tri':>5} {'openac':>6} "
+           f"{'tree%':>6} {'dry_ac':>6} {'hyd%':>5} {'wt_in':>5} "
+           f"{'tri':>5} {'openac':>6} "
            f"{'SB':>4} {'CJ':>4} {'price':>10}  {'flood':18}  address")
     print("\n" + hdr)
     print("-" * len(hdr))
@@ -301,7 +311,8 @@ def print_table(merged, key):
         print(f" {src:4} {(r.get('_status') or ''):14} "
               f"{cnt if cnt > 1 else '':>2} {listed:7} "
               f"{n('parcel_acres')} {n('canopy_pct',6,0)} "
-              f"{n('relief_ft')} {n('tri_ft',5)} "
+              f"{n('drained_ac',6)} {n('hydric_pct',5,0)} "
+              f"{n('wt_depth_in',5,0)} {n('tri_ft',5)} "
               f"{n('flood_open',6)} "
               f"{sb if sb is not None else '  -':>4} "
               f"{cj if cj is not None else '  -':>4} "
@@ -313,7 +324,10 @@ def print_table(merged, key):
           f"price not in the feed; type it into price_verified). "
           f"'*' = verified by hand. SB/CJ = minutes to Sandbridge / Coinjock.\n"
           f"tree% = NLCD tree canopy cover. On flat ground it is the ONLY "
-          f"source of privacy -- landform screens nothing under ~8 ft relief.")
+          f"source of privacy -- landform screens nothing under ~8 ft relief.\n"
+          f"dry_ac = acres of moderately-well-drained or better soil (the "
+          f"septic number). hyd% = on wetland-indicator soil. wt_in = "
+          f"shallowest seasonal water table, inches.")
 
 
 def write_csv(merged):
@@ -382,7 +396,8 @@ def write_xlsx(merged):
     dv.add(f"{scol}2:{scol}{max(ws.max_row, 500)}")
 
     widths = {"address": 42, "notes": 46, "flood": 24, "url": 12,
-              "canopy_pct": 10,
+              "canopy_pct": 10, "soils": 34, "drained_ac": 11,
+              "hydric_pct": 10, "wt_depth_in": 11,
               "price_verified": 14,
               "parcel_key": 26, "status": 15}
     for i, name in enumerate(COLS, start=1):

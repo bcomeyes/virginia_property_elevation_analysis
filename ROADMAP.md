@@ -1,3 +1,85 @@
+# ROADMAP
+
+## Where we are — 2026-09-20
+
+The pipeline runs end to end and writes the shared Google Sheet. Today's sweep
+put **37 parcels** in front of Matt and Larissa across Virginia Beach and
+Chesapeake.
+
+**Working:**
+
+* `find_land.py --sweep` → Google Sheet + csv + xlsx in one run, ~15 min.
+* The sheet is the source of truth for `status`, `notes`, `price_verified`.
+  `read_existing()` reads it *before* measuring, so a sweep that dies halfway
+  loses nothing. It falls back to xlsx, then csv, then blank — never fatal.
+* Auth is a Google Cloud service account, `land-sheets-writer@…`, whose JSON
+  key lives at `~/.config/land-sheets-key.json` (mode 600, deliberately
+  outside the repo) with its *path* in the env file. The Sheets API is enabled
+  on project `land-sheets-509221` and the sheet is shared with that account as
+  Editor. Rotating the key means replacing one file; no code changes.
+* Annotations carry across filter tweaks with `!carried`, and release — named
+  out loud, never silently — when a jurisdiction is dropped.
+
+**Open:**
+
+* **The sheet's basic filter hides rows.** It filters by exact *value*, and
+  the script rewrites the grid every run, so its `hiddenValues` lists go stale
+  immediately. Today 37 rows were written and 9 were visible. Blank `acres` is
+  among the excluded values, which kills every new-construction row. Fix is
+  Data → Remove filter; filter on `parcel_acres` instead, which is the number
+  we measured rather than the number the listing claimed.
+* **The drive-time cliff is still not pinned down.** Kept rows sit at 34–35
+  min to Sandbridge, deleted rows at 47–48. Nothing has been measured in
+  between, so the boundary remains an assumption.
+* **`above_bfe.py` is written and has never been run.**
+* **The sheet backup is local only.** `output/` is gitignored, so
+  `output/sheet_backup_*.csv` — the only copy of the released Suffolk notes —
+  exists on exactly one disk.
+
+**Next:** walk the short list in December. Before that, decide whether the
+Blackwater Rd cluster survives its soil numbers — 6664 has zero drained acres,
+67% hydric, a 15-inch water table — despite reading 85–92% canopy.
+
+## Suffolk: opened, measured, cut — 2026-09-20
+
+Suffolk was added because Virginia Beach alone was 14 parcels, four of them
+one Blackwater cluster. It worked: it produced the best-measuring land in the
+whole set, including the Crittenden Rd parcels — real acreage, heavy canopy, a
+freshwater pond, inside the price ceiling.
+
+It was cut anyway. Suffolk is 1.25+ hours to Sandbridge and further to the
+Outer Banks. Suffolk has plenty of water; it is not the water they are moving
+for. That is the clearest statement so far of what this search is actually
+for, and it is why `min_sandbridge` is the primary sort key.
+
+Seven annotated Suffolk rows released on the way out, preserved in
+`output/sheet_backup_20260920_1608.csv`:
+
+```
+7399 Crittenden Rd      [candidate]      "Peninsula on lake; super cool"
+6701 Crittenden Rd      [watching]       "close to Suffolk and Chesapeake proper; heavily wood"
+1101 Cypress Chapel Rd  [reject-other]   "too denuded"
+949 Cherry Grove Rd N   [reject-other]   "only wooded lot in a sea of clear cut"
+2508 Pittmantown Rd     [reject-other]   "house on property"
+2105 Holland Corner Rd  [reject-terrain]
+145 Dutch Rd            [reject-other]
+```
+
+Re-adding Suffolk is one line in `search_config.py`. The rejects would come
+back unmarked, so that backup is the only record of work already done on them.
+
+## Parameters as of today
+
+`MAX_PRICE` 400k → **$1M**, because the old ceiling was hiding acreage they
+can afford. `MIN_ACRES` 1.0 → **2.0**, because everything under 2 in the sweep
+was subdivision infill. `MAX_FINE_PULLS` 60, raised alongside the price cap.
+`EXCLUDE_UNIT_ADDRESSES` closes the Sandpiper hole: eleven listings on one
+61.46 ac common tract held the top of the sheet for weeks on the strength of a
+9-minute drive time. `ENFORCE_MEASURED_ACRES` drops rows whose *measured*
+parcel is under the floor despite passing the listing gate; annotated rows are
+exempt.
+
+## Measurement (solved)
 
 **1 m bare earth is REAL GROUND, not interpolation.** Verified against a
 transect across the Knotts Island lot, which Matt has walked: 6.4 ft at Marsh
@@ -52,7 +134,7 @@ Traps, both cost real time:
     returns HTTP 400 with no useful message.
   * SDA returns every value as a STRING, including numerics.
 
-## The finding that changes the search
+## The finding that opened the search (historical)
 
 Virginia Beach under $400k is 14 parcels, four of them one Blackwater cluster,
 all under 3 ft of relief with 0.00-3.62 drained acres and a 15-inch water
@@ -68,3 +150,6 @@ access, and the western side borders the Great Dismal Swamp (heavy federal
 wetland). But no 50 ft Southern Watershed buffer -- that is a Virginia Beach
 ordinance -- and possibly outside a Bay Preservation Area, so the land
 disturbance trigger may be 10,000 sq ft rather than 2,500.
+
+**Superseded 2026-09-20.** The drive time settled it; see "Suffolk: opened,
+measured, cut" above. Chesapeake stayed.

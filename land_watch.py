@@ -35,7 +35,7 @@ EMAIL: Gmail app password, set in crontab as env vars, never in this file
 (exactly like revel_watch).
 """
 
-import argparse, json, math, os, shutil, smtplib, subprocess, sys, time
+import argparse, json, math, os, re, shutil, smtplib, subprocess, sys, time
 import urllib.error, urllib.parse, urllib.request
 from email.message import EmailMessage
 from datetime import datetime, timezone
@@ -56,6 +56,25 @@ import search_config as cfg
 CITIES      = cfg.JURISDICTIONS
 MIN_ACRES   = cfg.MIN_ACRES
 MAX_PRICE   = cfg.MAX_PRICE
+EXCLUDE_UNIT_ADDRESSES = getattr(cfg, "EXCLUDE_UNIT_ADDRESSES", True)
+
+# A unit number means the address is a site INSIDE a development, so there is
+# no parcel of its own to measure -- see EXCLUDE_UNIT_ADDRESSES in
+# search_config.py. Matches "Unit 235", "#235", "Apt 4", "Ste 200", "Trlr 7".
+# Does NOT match "Lot 12": that is ordinary for raw land. Word boundaries keep
+# it off street names like "Unity Church Rd".
+_UNIT_RE = re.compile(
+    r"""(?:
+          \b (?: unit | apt | apartment | ste | suite | trlr ) \b \.? \s* \#? \s* [A-Za-z-]* \d
+        | \# \s* [A-Za-z-]* \d
+        )""",
+    re.I | re.X,
+)
+
+
+def is_unit_address(addr):
+    """True if the address carries a unit designator."""
+    return bool(addr and _UNIT_RE.search(str(addr)))
 
 # kept so older calls to --nc still resolve
 CITIES_VA   = cfg.VA_ALL
@@ -311,6 +330,14 @@ def qualify(listings, pockets=None):
         # we were going to drop anyway. ----------------------------------
         # plain land, OR a lot carrying a proposed build (see extract())
         if "land" not in (e["type"] or "") and not e["new_construction"]:
+            continue
+
+        # Still the "is it land" check: a unit number means a site inside a
+        # development, and the county parcel beneath it is the development's
+        # common tract, so every measurement downstream would describe that
+        # tract instead of the lot. 3665 Sandpiper Rd Unit 235 sat at the top
+        # of the sheet for weeks on exactly this.
+        if EXCLUDE_UNIT_ADDRESSES and is_unit_address(e["addr"]):
             continue
 
         # Acreage. A rural LAND listing genuinely may omit lot_sqft, and

@@ -17,3 +17,9 @@ python-dotenv>=1.0
 # folium>=0.15
 # openrouteservice>=2.3
 openpyxl
+
+# Google Sheet - the one live sheet Matt and Larissa both read and annotate.
+# Installed in the venv but missing from this file until now, so a rebuilt
+# venv would have silently dropped back to csv + xlsx.
+gspread>=6.0
+google-auth>=2.0

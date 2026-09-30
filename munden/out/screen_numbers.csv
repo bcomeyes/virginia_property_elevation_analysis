@@ -1,0 +1,13 @@
+auc: elevation 2013,0.73
+auc: elevation 2023,0.64
+auc: local relief 15 m (2023),0.54
+auc: local relief 30 m (2023),0.53
+auc: local relief 60 m (2023),0.45
+auc: height above ditch (2023),0.7
+auc: closeness to ditch,0.76
+wet_median_2013,7.33
+wet_median_2023,7.55
+flight_noise_ft,0.17
+bank_zone_ft,67.0
+parcel_ac,25.39
+study_traced_ac,25.06

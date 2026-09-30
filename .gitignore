@@ -37,3 +37,8 @@ cache/
 *.tif
 *.gpkg
 _archive/
+
+# --- Munden Point screen ---------------------------------------------------
+# Rick's delineation PDFs (his work product) and re-fetchable caches.
+site_docs/
+munden/cache/

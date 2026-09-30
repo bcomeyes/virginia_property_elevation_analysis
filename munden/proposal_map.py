@@ -28,11 +28,13 @@ ASKS = [
     ("S1", "2", "#ff2bd6"),
     ("H3", "1", "#ffe600"),
     ("B1", "3", "#00e5ff"),
+    ("H2", "4", "#b6ff3b"),     # Rick tested it (pt 8) -- drawn dashed
 ]
 TEXT = {
     "1": "#1  ~{ac:.1f} ac  Same height as his upland\n      point 3, next to his upland,\n      never sampled",
     "2": "#2  ~{ac:.1f} ac  Soil map says well-drained\n      (Munden/Bojac); next to his\n      upland. Ask about the WEST end.",
     "3": "#3  ~{ac:.1f} ac  West bank of the ditch -- same\n      height as his upland on the\n      east bank. Ask: why one side only?",
+    "4": "#4  ~{ac:.1f} ac  Highest ground in his wetland.\n      He tested it (point 8): wetland.\n      Ask only: was it a close call?",
 }
 
 
@@ -81,8 +83,10 @@ def main():
     # Our asks
     for cid, num, col in ASKS:
         g = cands.loc[cid].geometry
+        tested = cid == "H2"
         for part in getattr(g, "geoms", [g]):
-            ax.fill(*part.exterior.xy, fc=col, alpha=0.35, ec=col, lw=3.5)
+            ax.fill(*part.exterior.xy, fc=col, alpha=0.30 if tested else 0.35,
+                    ec=col, lw=4.5 if tested else 3.5, ls="--" if tested else "-")
         c = g.representative_point()
         if cid == "S1":                     # label the west end, the part we ask about
             from shapely.geometry import box
@@ -113,14 +117,15 @@ def main():
     ]
     for cid, num, col in sorted(ASKS, key=lambda a: a[1]):
         ac = cands.loc[cid].geometry.area / ACRE_M2
-        handles.append(Patch(fc=col, alpha=0.6, ec=col, label=TEXT[num].format(ac=ac)))
+        handles.append(Patch(fc=col, alpha=0.3 if cid == "H2" else 0.6, ec=col, lw=2,
+                             ls="--" if cid == "H2" else "-", label=TEXT[num].format(ac=ac)))
     leg = ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.01),
                     ncol=2, fontsize=11.5, frameon=False,
                     title="Rick found (left)   /   We propose he retest (right)",
                     title_fontsize=13, labelspacing=1.0)
     leg.get_title().set_weight("bold")
-    ax.set_title("1832 Munden Point Rd: Rick's delineation and three spots to retest\n"
-                 "If #1 and #2 pass: ~4 -> ~5 ac.   If #3 also passes: ~6.7 ac.",
+    ax.set_title("1832 Munden Point Rd: Rick's delineation and four spots to ask about\n"
+                 "If #1 and #2 pass: ~4 -> ~5 ac.   Plus #3: ~6.7 ac.   Plus #4: ~7.3 ac.",
                  fontsize=15, weight="bold")
     fig.savefig(OUT / "proposal_map.png", dpi=110, bbox_inches="tight")
     print(f"wrote {OUT / 'proposal_map.png'}")

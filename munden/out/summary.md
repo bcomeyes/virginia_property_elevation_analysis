@@ -104,7 +104,7 @@ score. Full columns are in `candidates.csv`.
 | **S1** | 0.68 | Mapped Munden 74% / Bojac 25%; adjoins his south upland pocket | Wetland pt 4 is 17 ft away; ground 0.4 ft below pt 4 | Worth a pit on the west end, away from pt 4. |
 | **H1** | 0.20 | High (0.9 ft) plus Munden/Bojac; adjoins upland | **Contains wetland pt 4** | Mostly already answered. Overlaps S1 by 0.15 ac. |
 | **B1** | 1.68 | West bank, same height as the east strip | Nimmo/Portsmouth; no elevation edge | **A question, not data.** The only one big enough to matter. It's across the ditch from the existing upland. |
-| **H2** | 0.67 | Highest ground in the wetland: 1.6 ft above upland pt 1 | **Contains wetland pt 8** | Rick already put Wetland #2 (the driest class) right on this rise and sampled it. |
+| **H2** | 0.67 | Highest ground in the wetland: 1.6 ft above upland pt 1 | **Contains wetland pt 8** | Rick already put Wetland #2 (the driest class) on this rise and sampled it. Ask only whether it was a close call. |
 
 - H1 + S1 + H3 together: 1.05 ac, all touching his existing upland.
 - Adding B1: 2.7 ac.

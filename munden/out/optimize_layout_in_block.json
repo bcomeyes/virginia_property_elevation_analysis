@@ -1,0 +1,14 @@
+{
+ "no": {
+  "pond_ac": 2.6594891886786316,
+  "biggest_piece_ac": 2.578382564079611,
+  "house_to_field_ft": 487.4470880835428,
+  "well_to_house_ft": 15.000000000092864
+ },
+ "yes": {
+  "pond_ac": 1.3394984468933042,
+  "biggest_piece_ac": 1.2959524265147633,
+  "house_to_field_ft": 436.1723781924803,
+  "well_to_house_ft": 15.00000000005235
+ }
+}

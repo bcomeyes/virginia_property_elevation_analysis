@@ -1,0 +1,16 @@
+{
+ "rick_upland_ac": 3.8835726135604416,
+ "house_sqft": 8320.807891130644,
+ "house_to_wetland_ft": 14.53938210001905,
+ "septic_sqft": 3488.794652861134,
+ "septic_to_ditch_ft": 22.55121453583118,
+ "well_to_septic_ft": 434.2038857708715,
+ "well_to_house_ft": 48.07397258386988,
+ "septic_in_upland_frac": 0.9999999999999993,
+ "septic_in_parcel_frac": 0.9999999999999993,
+ "house_to_septic_ft": 477.0556360319615,
+ "pond_ac_no_strip": 2.518673586542824,
+ "pond_ac_with_strip": 1.2958698124588979,
+ "pond_largest_piece_no_strip": 2.1243474323911102,
+ "pond_largest_piece_with_strip": 1.1170046882914495
+}

@@ -1,0 +1,12 @@
+{
+ "pond_ac": 0.861047822267262,
+ "pond_ac_50ft_from_wetland": 0.5326552905837445,
+ "house_to_wetland_ft": 50.550196872444445,
+ "house_sqft": 8320.807891130644,
+ "drive_closest_to_wetland_ft": 0.0,
+ "drive_length_within_50ft_of_wetland_ft": 274.64742750895306,
+ "septic_sqft": 3488.794652861134,
+ "arm_room_for_septic_sqft": 41262.51028598692,
+ "sewer_line_ft": 467.2255006560448,
+ "well_to_house_ft": 17.688403051634793
+}

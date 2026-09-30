@@ -1,0 +1,9 @@
+{
+ "block_ac": 1.9096243064518368,
+ "strip_ac": 0.6827880525144123,
+ "usable_ac": 1.2268362539378606,
+ "pond_max_ac": 0.6408880021243742,
+ "house_to_strip_ft": 4.421896662248275,
+ "well_to_house_ft": 199.77671272839711,
+ "field_in_block": true
+}
